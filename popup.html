@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TTS Voice Bridge</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>TTS Voice Bridge</h1>
+      </header>
+
+      <main>
+        <div class="input-section">
+          <textarea
+            id="textInput"
+            placeholder="변환할 텍스트를 입력하세요..."
+            rows="4"
+          ></textarea>
+        </div>
+
+        <div class="controls">
+          <button id="playButton" class="primary-button" disabled>
+            <span class="button-text">음성 재생</span>
+            <span class="loading-spinner" style="display: none"></span>
+          </button>
+
+          <button id="settingsButton" class="secondary-button">설정</button>
+        </div>
+
+        <div class="status" id="statusIndicator">
+          <span class="status-text">준비됨</span>
+        </div>
+      </main>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "tts-voice-bridge",
+  "version": "1.0.0",
+  "description": "TTS Voice Bridge Chrome Extension",
+  "scripts": {
+    "test": "vitest --run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0"
+  }
+}
