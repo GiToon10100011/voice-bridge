@@ -1,73 +1,144 @@
 // Test setup for Web Speech API mocking
-import { vi } from 'vitest';
+import { vi, beforeEach, afterEach } from 'vitest';
 
 // Mock window.location to prevent "Cannot redefine property" errors
-Object.defineProperty(window, 'location', {
-  value: {
-    href: 'https://example.com',
-    hostname: 'example.com',
-    pathname: '/',
-    search: '',
-    hash: '',
-    origin: 'https://example.com',
-    protocol: 'https:',
-    assign: vi.fn(),
-    replace: vi.fn(),
-    reload: vi.fn()
-  },
+const mockLocation = {
+  href: 'https://example.com',
+  hostname: 'example.com',
+  pathname: '/',
+  search: '',
+  hash: '',
+  origin: 'https://example.com',
+  protocol: 'https:',
+  assign: vi.fn(),
+  replace: vi.fn(),
+  reload: vi.fn()
+};
+
+Object.defineProperty(global, 'location', {
+  value: mockLocation,
   writable: true,
   configurable: true
 });
 
-// Mock Chrome Extension APIs
+// Mock Chrome Extension APIs with proper error handling
 global.chrome = {
   runtime: {
-    sendMessage: vi.fn(),
+    sendMessage: vi.fn((message, callback) => {
+      if (callback) {
+        setTimeout(() => callback({ success: true }), 0);
+      }
+      return Promise.resolve({ success: true });
+    }),
     onMessage: {
       addListener: vi.fn(),
-      removeListener: vi.fn()
+      removeListener: vi.fn(),
+      hasListener: vi.fn(() => false)
     },
     getURL: vi.fn(path => `chrome-extension://test/${path}`),
-    id: 'test-extension-id'
+    id: 'test-extension-id',
+    lastError: null
   },
   storage: {
     local: {
-      get: vi.fn(),
-      set: vi.fn(),
-      remove: vi.fn(),
-      clear: vi.fn()
+      get: vi.fn((keys, callback) => {
+        const result = {};
+        if (callback) {
+          setTimeout(() => callback(result), 0);
+        }
+        return Promise.resolve(result);
+      }),
+      set: vi.fn((items, callback) => {
+        if (callback) {
+          setTimeout(() => callback(), 0);
+        }
+        return Promise.resolve();
+      }),
+      remove: vi.fn((keys, callback) => {
+        if (callback) {
+          setTimeout(() => callback(), 0);
+        }
+        return Promise.resolve();
+      }),
+      clear: vi.fn(callback => {
+        if (callback) {
+          setTimeout(() => callback(), 0);
+        }
+        return Promise.resolve();
+      })
     },
     sync: {
-      get: vi.fn(),
-      set: vi.fn(),
+      get: vi.fn((keys, callback) => {
+        const result = {};
+        if (callback) {
+          setTimeout(() => callback(result), 0);
+        }
+        return Promise.resolve(result);
+      }),
+      set: vi.fn((items, callback) => {
+        if (callback) {
+          setTimeout(() => callback(), 0);
+        }
+        return Promise.resolve();
+      }),
       remove: vi.fn(),
       clear: vi.fn()
     }
   },
   tabs: {
-    query: vi.fn(),
-    sendMessage: vi.fn()
+    query: vi.fn((queryInfo, callback) => {
+      const tabs = [{ id: 1, url: 'https://example.com', active: true }];
+      if (callback) {
+        setTimeout(() => callback(tabs), 0);
+      }
+      return Promise.resolve(tabs);
+    }),
+    sendMessage: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn()
+  },
+  permissions: {
+    request: vi.fn((permissions, callback) => {
+      if (callback) {
+        setTimeout(() => callback(true), 0);
+      }
+      return Promise.resolve(true);
+    }),
+    contains: vi.fn((permissions, callback) => {
+      if (callback) {
+        setTimeout(() => callback(true), 0);
+      }
+      return Promise.resolve(true);
+    })
   }
 };
 
-// Mock SpeechSynthesisUtterance
-global.SpeechSynthesisUtterance = vi.fn().mockImplementation(text => ({
-  text,
-  voice: null,
-  volume: 1,
-  rate: 1,
-  pitch: 1,
-  lang: '',
-  onstart: null,
-  onend: null,
-  onerror: null,
-  onpause: null,
-  onresume: null,
-  onmark: null,
-  onboundary: null
-}));
+// Mock SpeechSynthesisUtterance with proper event handlers
+const createMockUtterance = text => {
+  const utterance = {
+    text: text || '',
+    voice: null,
+    volume: 1,
+    rate: 1,
+    pitch: 1,
+    lang: '',
+    onstart: null,
+    onend: null,
+    onerror: null,
+    onpause: null,
+    onresume: null,
+    onmark: null,
+    onboundary: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  };
+  return utterance;
+};
 
-// Mock speechSynthesis
+global.SpeechSynthesisUtterance = vi.fn().mockImplementation(createMockUtterance);
+
+// Mock speechSynthesis with better implementation
 const mockVoices = [
   {
     name: 'Korean Voice',
@@ -97,34 +168,115 @@ global.speechSynthesis = {
   pending: false,
   paused: false,
   getVoices: vi.fn(() => mockVoices),
-  speak: vi.fn(),
-  cancel: vi.fn(),
+  speak: vi.fn(utterance => {
+    // Set speaking state immediately
+    global.speechSynthesis.speaking = true;
+
+    // Simulate async speech with proper null checks
+    setTimeout(() => {
+      if (utterance && typeof utterance.onstart === 'function') {
+        utterance.onstart();
+      } else if (utterance && utterance.onstart === null) {
+        // Event handler exists but is null, that's fine
+      }
+
+      setTimeout(() => {
+        global.speechSynthesis.speaking = false;
+        if (utterance && typeof utterance.onend === 'function') {
+          utterance.onend();
+        } else if (utterance && utterance.onend === null) {
+          // Event handler exists but is null, that's fine
+        }
+      }, 10); // Reduced from 50ms to 10ms for faster tests
+    }, 1); // Reduced from 5ms to 1ms for faster tests
+  }),
+  cancel: vi.fn(() => {
+    global.speechSynthesis.speaking = false;
+  }),
   pause: vi.fn(),
   resume: vi.fn(),
-  addEventListener: vi.fn()
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn()
 };
 
-// Mock console methods to reduce test noise
+// Mock other Web APIs
+global.fetch = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({}),
+    text: () => Promise.resolve('')
+  })
+);
+
+global.URL = {
+  createObjectURL: vi.fn(() => 'blob:test'),
+  revokeObjectURL: vi.fn()
+};
+
+// Mock console methods to reduce noise in tests
+const originalConsole = global.console;
 global.console = {
-  ...console,
+  ...originalConsole,
   warn: vi.fn(),
   error: vi.fn(),
-  log: vi.fn()
+  log: originalConsole.log // Keep log for debugging
 };
 
-// Reset mocks before each test
+// Setup and cleanup hooks
 beforeEach(() => {
-  vi.clearAllMocks();
+  // Reset DOM state
+  if (typeof document !== 'undefined' && document && document.body) {
+    document.body.innerHTML = '';
+  }
+  if (typeof document !== 'undefined' && document && document.head) {
+    document.head.innerHTML = '';
+  }
+
+  // Reset location properties safely
+  if (global.location) {
+    global.location.href = 'https://example.com';
+    global.location.hostname = 'example.com';
+    global.location.pathname = '/';
+    global.location.search = '';
+    global.location.hash = '';
+  }
+
+  // Reset window.location if it exists
+  if (typeof window !== 'undefined' && window) {
+    try {
+      if (window.location && typeof window.location === 'object') {
+        window.location.href = 'https://example.com';
+        window.location.hostname = 'example.com';
+      }
+    } catch (e) {
+      // Ignore errors when setting location properties
+    }
+  }
+
+  // Reset speech synthesis state
   global.speechSynthesis.speaking = false;
   global.speechSynthesis.pending = false;
   global.speechSynthesis.paused = false;
+});
 
-  // Reset Chrome API mocks
-  global.chrome.runtime.sendMessage.mockClear();
-  global.chrome.storage.local.get.mockClear();
-  global.chrome.storage.local.set.mockClear();
+afterEach(() => {
+  // Clear all mocks
+  vi.clearAllMocks();
 
-  // Reset location mock
-  window.location.href = 'https://example.com';
-  window.location.hostname = 'example.com';
+  // Reset chrome.runtime.lastError
+  if (global.chrome && global.chrome.runtime) {
+    global.chrome.runtime.lastError = null;
+  }
+
+  // Clean up any timers
+  vi.clearAllTimers();
+});
+
+// Handle unhandled promise rejections in tests
+process.on('unhandledRejection', (reason, promise) => {
+  // Ignore test-related rejections
+  if (reason && reason.message && reason.message.includes('test')) {
+    return;
+  }
+  console.warn('Unhandled promise rejection in test:', reason);
 });

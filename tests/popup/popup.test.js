@@ -1,29 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { JSDOM } from "jsdom";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 
 // Mock Chrome APIs
 const mockChrome = {
   runtime: {
     sendMessage: vi.fn(),
     onMessage: {
-      addListener: vi.fn(),
+      addListener: vi.fn()
     },
-    getURL: vi.fn((path) => `chrome-extension://test/${path}`),
+    getURL: vi.fn(path => `chrome-extension://test/${path}`)
   },
   storage: {
     local: {
       set: vi.fn().mockResolvedValue(),
-      get: vi.fn().mockResolvedValue({}),
-    },
+      get: vi.fn().mockResolvedValue({})
+    }
   },
   tabs: {
-    create: vi.fn().mockResolvedValue({ id: 1 }),
-  },
+    create: vi.fn().mockResolvedValue({ id: 1 })
+  }
 };
 
 global.chrome = mockChrome;
 
-describe("Popup UI Tests", () => {
+describe('Popup UI Tests', () => {
   let dom;
   let document;
   let window;
@@ -84,9 +84,9 @@ describe("Popup UI Tests", () => {
       </html>
     `,
       {
-        url: "chrome-extension://test/",
+        url: 'chrome-extension://test/',
         pretendToBeVisual: true,
-        resources: "usable",
+        resources: 'usable'
       }
     );
 
@@ -100,23 +100,23 @@ describe("Popup UI Tests", () => {
     global.Event = window.Event;
 
     // Import and setup PopupUI class
-    const popupModule = await import("./popup.js");
+    const popupModule = await import('../../src/popup/popup.js');
     PopupUI =
       popupModule.default ||
       class PopupUI {
         constructor() {
-          this.textInput = document.getElementById("textInput");
-          this.playButton = document.getElementById("playButton");
-          this.stopButton = document.getElementById("stopButton");
-          this.settingsButton = document.getElementById("settingsButton");
-          this.statusIndicator = document.getElementById("statusIndicator");
-          this.charCount = document.getElementById("charCount");
-          this.progressSection = document.getElementById("progressSection");
-          this.progressFill = document.getElementById("progressFill");
-          this.progressText = document.getElementById("progressText");
+          this.textInput = document.getElementById('textInput');
+          this.playButton = document.getElementById('playButton');
+          this.stopButton = document.getElementById('stopButton');
+          this.settingsButton = document.getElementById('settingsButton');
+          this.statusIndicator = document.getElementById('statusIndicator');
+          this.charCount = document.getElementById('charCount');
+          this.progressSection = document.getElementById('progressSection');
+          this.progressFill = document.getElementById('progressFill');
+          this.progressText = document.getElementById('progressText');
 
           this.isPlaying = false;
-          this.currentText = "";
+          this.currentText = '';
           this.maxLength = 1000;
 
           this.init();
@@ -127,55 +127,53 @@ describe("Popup UI Tests", () => {
           this.setupMessageListener();
           this.updateButtonState();
           this.updateCharacterCount();
-          this.updateStatus("idle");
+          this.updateStatus('idle');
           this.loadSavedText();
         }
 
         setupEventListeners() {
-          this.textInput.addEventListener("input", (e) => {
+          this.textInput.addEventListener('input', e => {
             this.validateInput(e.target.value);
             this.updateButtonState();
             this.updateCharacterCount();
             this.saveTextToStorage();
           });
 
-          this.textInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+          this.textInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               this.handleTextSubmit();
             }
           });
 
-          this.playButton.addEventListener("click", () => {
+          this.playButton.addEventListener('click', () => {
             this.handleTextSubmit();
           });
 
-          this.stopButton.addEventListener("click", () => {
+          this.stopButton.addEventListener('click', () => {
             this.handleStop();
           });
 
-          this.settingsButton.addEventListener("click", () => {
+          this.settingsButton.addEventListener('click', () => {
             this.handleSettingsOpen();
           });
         }
 
         setupMessageListener() {
-          chrome.runtime.onMessage.addListener(
-            (message, sender, sendResponse) => {
-              switch (message.type) {
-                case "TTS_STARTED":
-                  this.handleTTSStarted(message.payload);
-                  break;
-                case "TTS_COMPLETED":
-                  this.handleTTSCompleted(message.payload);
-                  break;
-                case "TTS_ERROR":
-                  this.handleTTSError(message.payload);
-                  break;
-              }
-              sendResponse({ received: true });
+          chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            switch (message.type) {
+              case 'TTS_STARTED':
+                this.handleTTSStarted(message.payload);
+                break;
+              case 'TTS_COMPLETED':
+                this.handleTTSCompleted(message.payload);
+                break;
+              case 'TTS_ERROR':
+                this.handleTTSError(message.payload);
+                break;
             }
-          );
+            sendResponse({ received: true });
+          });
         }
 
         validateInput(text) {
@@ -189,8 +187,7 @@ describe("Popup UI Tests", () => {
         updateButtonState() {
           const hasText = this.textInput.value.trim().length > 0;
           const isValidLength = this.textInput.value.length <= this.maxLength;
-          this.playButton.disabled =
-            !hasText || !isValidLength || this.isPlaying;
+          this.playButton.disabled = !hasText || !isValidLength || this.isPlaying;
         }
 
         updateCharacterCount() {
@@ -200,13 +197,13 @@ describe("Popup UI Tests", () => {
 
         updateStatus(status) {
           const statusText = {
-            idle: "준비됨",
-            playing: "음성 재생 중...",
-            error: "오류 발생",
+            idle: '준비됨',
+            playing: '음성 재생 중...',
+            error: '오류 발생'
           };
           this.statusIndicator.className = `status ${status}`;
-          this.statusIndicator.querySelector(".status-text").textContent =
-            statusText[status] || "알 수 없음";
+          this.statusIndicator.querySelector('.status-text').textContent =
+            statusText[status] || '알 수 없음';
         }
 
         async handleTextSubmit() {
@@ -216,17 +213,17 @@ describe("Popup UI Tests", () => {
           try {
             this.currentText = text;
             this.isPlaying = true;
-            this.updateStatus("playing");
+            this.updateStatus('playing');
             this.setPlayingState(true);
 
             const response = await chrome.runtime.sendMessage({
-              type: "TTS_PLAY",
+              type: 'TTS_PLAY',
               payload: { text },
-              timestamp: Date.now(),
+              timestamp: Date.now()
             });
 
             if (!response || response.error) {
-              throw new Error(response?.error || "Failed to start TTS");
+              throw new Error(response?.error || 'Failed to start TTS');
             }
           } catch (error) {
             this.handleTTSError({ error: error.message });
@@ -236,68 +233,72 @@ describe("Popup UI Tests", () => {
         async handleStop() {
           if (!this.isPlaying) return;
           await chrome.runtime.sendMessage({
-            type: "TTS_STOP",
+            type: 'TTS_STOP',
             payload: {},
-            timestamp: Date.now(),
+            timestamp: Date.now()
           });
         }
 
         handleSettingsOpen() {
           chrome.tabs.create({
-            url: chrome.runtime.getURL("settings.html"),
+            url: chrome.runtime.getURL('settings.html')
           });
         }
 
         handleTTSStarted(payload) {
-          this.updateStatus("playing");
+          this.updateStatus('playing');
           this.showProgress(true);
         }
 
         handleTTSCompleted(payload) {
           this.isPlaying = false;
-          this.updateStatus("idle");
+          this.updateStatus('idle');
           this.setPlayingState(false);
           this.showProgress(false);
         }
 
         handleTTSError(payload) {
           this.isPlaying = false;
-          this.updateStatus("error");
+          this.updateStatus('error');
           this.setPlayingState(false);
           this.showProgress(false);
         }
 
         setPlayingState(isPlaying) {
-          const buttonText = this.playButton.querySelector(".button-text");
-          const spinner = this.playButton.querySelector(".loading-spinner");
+          const buttonText = this.playButton.querySelector('.button-text');
+          const spinner = this.playButton.querySelector('.loading-spinner');
 
           if (isPlaying) {
-            buttonText.style.display = "none";
-            spinner.style.display = "block";
+            buttonText.style.display = 'none';
+            spinner.style.display = 'block';
             this.playButton.disabled = true;
-            this.stopButton.style.display = "block";
+            this.stopButton.style.display = 'block';
             this.textInput.disabled = true;
           } else {
-            buttonText.style.display = "block";
-            spinner.style.display = "none";
-            this.stopButton.style.display = "none";
+            buttonText.style.display = 'block';
+            spinner.style.display = 'none';
+            this.stopButton.style.display = 'none';
             this.textInput.disabled = false;
             this.updateButtonState();
           }
         }
 
         showProgress(show) {
-          this.progressSection.style.display = show ? "block" : "none";
+          this.progressSection.style.display = show ? 'block' : 'none';
         }
 
         async saveTextToStorage() {
-          await chrome.storage.local.set({
-            lastText: this.textInput.value,
-          });
+          try {
+            await chrome.storage.local.set({
+              lastText: this.textInput.value
+            });
+          } catch (error) {
+            console.warn('Failed to save text to storage:', error);
+          }
         }
 
         async loadSavedText() {
-          const result = await chrome.storage.local.get(["lastText"]);
+          const result = await chrome.storage.local.get(['lastText']);
           if (result.lastText) {
             this.textInput.value = result.lastText;
             this.updateCharacterCount();
@@ -311,69 +312,67 @@ describe("Popup UI Tests", () => {
     dom.window.close();
   });
 
-  describe("Initialization", () => {
-    it("should initialize with correct default state", () => {
+  describe('Initialization', () => {
+    it('should initialize with correct default state', () => {
       const popup = new PopupUI();
 
       expect(popup.textInput).toBeTruthy();
       expect(popup.playButton).toBeTruthy();
       expect(popup.playButton.disabled).toBe(true);
-      expect(popup.charCount.textContent).toBe("0");
-      expect(
-        popup.statusIndicator.querySelector(".status-text").textContent
-      ).toBe("준비됨");
+      expect(popup.charCount.textContent).toBe('0');
+      expect(popup.statusIndicator.querySelector('.status-text').textContent).toBe('준비됨');
     });
 
-    it("should setup event listeners", () => {
+    it('should setup event listeners', () => {
       const popup = new PopupUI();
 
       // Test text input event
-      popup.textInput.value = "test text";
-      popup.textInput.dispatchEvent(new window.Event("input"));
+      popup.textInput.value = 'test text';
+      popup.textInput.dispatchEvent(new window.Event('input'));
 
       expect(popup.playButton.disabled).toBe(false);
-      expect(popup.charCount.textContent).toBe("9");
+      expect(popup.charCount.textContent).toBe('9');
     });
   });
 
-  describe("Text Input Validation", () => {
+  describe('Text Input Validation', () => {
     let popup;
 
     beforeEach(() => {
       popup = new PopupUI();
     });
 
-    it("should enable play button when text is entered", () => {
-      popup.textInput.value = "Hello world";
-      popup.textInput.dispatchEvent(new window.Event("input"));
+    it('should enable play button when text is entered', () => {
+      popup.textInput.value = 'Hello world';
+      popup.textInput.dispatchEvent(new window.Event('input'));
 
       expect(popup.playButton.disabled).toBe(false);
     });
 
-    it("should disable play button when text is empty", () => {
-      popup.textInput.value = "";
-      popup.textInput.dispatchEvent(new window.Event("input"));
+    it('should disable play button when text is empty', () => {
+      popup.textInput.value = '';
+      popup.textInput.dispatchEvent(new window.Event('input'));
 
       expect(popup.playButton.disabled).toBe(true);
     });
 
-    it("should enforce maximum character limit", () => {
-      const longText = "a".repeat(1001);
+    it('should enforce maximum character limit', () => {
+      const longText = 'a'.repeat(1001);
       popup.textInput.value = longText;
       popup.validateInput(longText);
 
       expect(popup.textInput.value.length).toBe(1000);
     });
 
-    it("should update character count correctly", () => {
-      popup.textInput.value = "test";
+    it('should update character count correctly', () => {
+      popup.textInput.value = 'test';
       popup.updateCharacterCount();
 
-      expect(popup.charCount.textContent).toBe("4");
+      expect(popup.charCount.textContent).toBe('4');
     });
   });
 
-  describe("TTS Playback Control", () => {
+  describe('TTS Playback Control', () => {
     let popup;
 
     beforeEach(() => {
@@ -381,65 +380,65 @@ describe("Popup UI Tests", () => {
       mockChrome.runtime.sendMessage.mockResolvedValue({ success: true });
     });
 
-    it("should send TTS_PLAY message when play button is clicked", async () => {
-      popup.textInput.value = "test text";
+    it('should send TTS_PLAY message when play button is clicked', async () => {
+      popup.textInput.value = 'test text';
       popup.updateButtonState();
 
       await popup.handleTextSubmit();
 
       expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
-        type: "TTS_PLAY",
-        payload: { text: "test text" },
-        timestamp: expect.any(Number),
+        type: 'TTS_PLAY',
+        payload: { text: 'test text' },
+        timestamp: expect.any(Number)
       });
     });
 
-    it("should not play when text is empty", async () => {
-      popup.textInput.value = "";
+    it('should not play when text is empty', async () => {
+      popup.textInput.value = '';
 
       await popup.handleTextSubmit();
 
       expect(mockChrome.runtime.sendMessage).not.toHaveBeenCalled();
     });
 
-    it("should send TTS_STOP message when stop button is clicked", async () => {
+    it('should send TTS_STOP message when stop button is clicked', async () => {
       popup.isPlaying = true;
 
       await popup.handleStop();
 
       expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
-        type: "TTS_STOP",
+        type: 'TTS_STOP',
         payload: {},
-        timestamp: expect.any(Number),
+        timestamp: expect.any(Number)
       });
     });
 
-    it("should update UI state when TTS starts", () => {
+    it('should update UI state when TTS starts', () => {
       popup.handleTTSStarted({});
 
-      expect(popup.statusIndicator.className).toContain("playing");
-      expect(popup.progressSection.style.display).toBe("block");
+      expect(popup.statusIndicator.className).toContain('playing');
+      expect(popup.progressSection.style.display).toBe('block');
     });
 
-    it("should reset UI state when TTS completes", () => {
+    it('should reset UI state when TTS completes', () => {
       popup.isPlaying = true;
       popup.handleTTSCompleted({});
 
       expect(popup.isPlaying).toBe(false);
-      expect(popup.statusIndicator.className).toContain("idle");
-      expect(popup.progressSection.style.display).toBe("none");
+      expect(popup.statusIndicator.className).toContain('idle');
+      expect(popup.progressSection.style.display).toBe('none');
     });
 
-    it("should handle TTS errors gracefully", () => {
+    it('should handle TTS errors gracefully', () => {
       popup.isPlaying = true;
-      popup.handleTTSError({ error: "Test error" });
+      popup.handleTTSError({ error: 'Test error' });
 
       expect(popup.isPlaying).toBe(false);
-      expect(popup.statusIndicator.className).toContain("error");
+      expect(popup.statusIndicator.className).toContain('error');
     });
   });
 
-  describe("Settings Integration", () => {
+  describe('Settings Integration', () => {
     let popup;
 
     beforeEach(() => {
@@ -447,44 +446,44 @@ describe("Popup UI Tests", () => {
       mockChrome.tabs.create.mockResolvedValue({ id: 1 });
     });
 
-    it("should open settings page when settings button is clicked", async () => {
+    it('should open settings page when settings button is clicked', async () => {
       await popup.handleSettingsOpen();
 
       expect(mockChrome.tabs.create).toHaveBeenCalledWith({
-        url: chrome.runtime.getURL("settings.html"),
+        url: chrome.runtime.getURL('settings.html')
       });
     });
   });
 
-  describe("Storage Integration", () => {
+  describe('Storage Integration', () => {
     let popup;
 
     beforeEach(() => {
       popup = new PopupUI();
       mockChrome.storage.local.set.mockResolvedValue();
       mockChrome.storage.local.get.mockResolvedValue({
-        lastText: "saved text",
+        lastText: 'saved text'
       });
     });
 
-    it("should save text to storage on input", async () => {
-      popup.textInput.value = "test text";
+    it('should save text to storage on input', async () => {
+      popup.textInput.value = 'test text';
       await popup.saveTextToStorage();
 
       expect(mockChrome.storage.local.set).toHaveBeenCalledWith({
-        lastText: "test text",
+        lastText: 'test text'
       });
     });
 
-    it("should load saved text on initialization", async () => {
+    it('should load saved text on initialization', async () => {
       await popup.loadSavedText();
 
-      expect(popup.textInput.value).toBe("saved text");
-      expect(mockChrome.storage.local.get).toHaveBeenCalledWith(["lastText"]);
+      expect(popup.textInput.value).toBe('saved text');
+      expect(mockChrome.storage.local.get).toHaveBeenCalledWith(['lastText']);
     });
   });
 
-  describe("Keyboard Shortcuts", () => {
+  describe('Keyboard Shortcuts', () => {
     let popup;
 
     beforeEach(() => {
@@ -492,30 +491,30 @@ describe("Popup UI Tests", () => {
       mockChrome.runtime.sendMessage.mockResolvedValue({ success: true });
     });
 
-    it("should trigger TTS on Enter key press", async () => {
-      popup.textInput.value = "test text";
+    it('should trigger TTS on Enter key press', async () => {
+      popup.textInput.value = 'test text';
       popup.updateButtonState();
 
-      const enterEvent = new window.KeyboardEvent("keydown", {
-        key: "Enter",
-        shiftKey: false,
+      const enterEvent = new window.KeyboardEvent('keydown', {
+        key: 'Enter',
+        shiftKey: false
       });
 
       popup.textInput.dispatchEvent(enterEvent);
 
       expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
-        type: "TTS_PLAY",
-        payload: { text: "test text" },
-        timestamp: expect.any(Number),
+        type: 'TTS_PLAY',
+        payload: { text: 'test text' },
+        timestamp: expect.any(Number)
       });
     });
 
-    it("should not trigger TTS on Shift+Enter", () => {
-      popup.textInput.value = "test text";
+    it('should not trigger TTS on Shift+Enter', () => {
+      popup.textInput.value = 'test text';
 
-      const shiftEnterEvent = new window.KeyboardEvent("keydown", {
-        key: "Enter",
-        shiftKey: true,
+      const shiftEnterEvent = new window.KeyboardEvent('keydown', {
+        key: 'Enter',
+        shiftKey: true
       });
 
       popup.textInput.dispatchEvent(shiftEnterEvent);
@@ -524,68 +523,66 @@ describe("Popup UI Tests", () => {
     });
   });
 
-  describe("UI State Management", () => {
+  describe('UI State Management', () => {
     let popup;
 
     beforeEach(() => {
       popup = new PopupUI();
     });
 
-    it("should show loading state during playback", () => {
+    it('should show loading state during playback', () => {
       popup.setPlayingState(true);
 
-      const buttonText = popup.playButton.querySelector(".button-text");
-      const spinner = popup.playButton.querySelector(".loading-spinner");
+      const buttonText = popup.playButton.querySelector('.button-text');
+      const spinner = popup.playButton.querySelector('.loading-spinner');
 
-      expect(buttonText.style.display).toBe("none");
-      expect(spinner.style.display).toBe("block");
+      expect(buttonText.style.display).toBe('none');
+      expect(spinner.style.display).toBe('block');
       expect(popup.playButton.disabled).toBe(true);
-      expect(popup.stopButton.style.display).toBe("block");
+      expect(popup.stopButton.style.display).toBe('block');
       expect(popup.textInput.disabled).toBe(true);
     });
 
-    it("should hide loading state after playback", () => {
+    it('should hide loading state after playback', () => {
       popup.setPlayingState(false);
 
-      const buttonText = popup.playButton.querySelector(".button-text");
-      const spinner = popup.playButton.querySelector(".loading-spinner");
+      const buttonText = popup.playButton.querySelector('.button-text');
+      const spinner = popup.playButton.querySelector('.loading-spinner');
 
-      expect(buttonText.style.display).toBe("block");
-      expect(spinner.style.display).toBe("none");
-      expect(popup.stopButton.style.display).toBe("none");
+      expect(buttonText.style.display).toBe('block');
+      expect(spinner.style.display).toBe('none');
+      expect(popup.stopButton.style.display).toBe('none');
       expect(popup.textInput.disabled).toBe(false);
     });
 
-    it("should show progress section when requested", () => {
+    it('should show progress section when requested', () => {
       popup.showProgress(true);
-      expect(popup.progressSection.style.display).toBe("block");
+      expect(popup.progressSection.style.display).toBe('block');
 
       popup.showProgress(false);
-      expect(popup.progressSection.style.display).toBe("none");
+      expect(popup.progressSection.style.display).toBe('none');
     });
   });
 
-  describe("Error Handling", () => {
+  describe('Error Handling', () => {
     let popup;
 
     beforeEach(() => {
       popup = new PopupUI();
     });
 
-    it("should handle Chrome API errors gracefully", async () => {
-      mockChrome.runtime.sendMessage.mockRejectedValue(new Error("API Error"));
+    it('should handle Chrome API errors gracefully', async () => {
+      mockChrome.runtime.sendMessage.mockRejectedValue(new Error('API Error'));
 
-      popup.textInput.value = "test text";
+      popup.textInput.value = 'test text';
       await popup.handleTextSubmit();
 
-      expect(popup.statusIndicator.className).toContain("error");
+      expect(popup.statusIndicator.className).toContain('error');
       expect(popup.isPlaying).toBe(false);
     });
 
-    it("should handle storage errors gracefully", async () => {
-      mockChrome.storage.local.set.mockRejectedValue(
-        new Error("Storage Error")
-      );
+    it('should handle storage errors gracefully', async () => {
+      mockChrome.storage.local.set.mockRejectedValue(new Error('Storage Error'));
 
       // Should not throw
       await expect(popup.saveTextToStorage()).resolves.toBeUndefined();

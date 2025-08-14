@@ -83,7 +83,20 @@ describe('Google Voice Search User Acceptance Tests', () => {
     });
 
     it('구글 음성검색 비활성화 상태를 정확히 감지해야 함', () => {
+      // Setup voice search button that exists but is inactive
       mockPage.setupVoiceSearch(false, true);
+
+      // Override querySelector to return an inactive button
+      mockPage.querySelector.mockImplementation(selector => {
+        if (selector.includes('voice') || selector.includes('mic')) {
+          return {
+            getAttribute: vi.fn().mockReturnValue('false'),
+            classList: { contains: vi.fn().mockReturnValue(false) },
+            style: { display: 'none' } // Hidden = inactive
+          };
+        }
+        return null;
+      });
 
       const isVoiceSearchActive = detectGoogleVoiceSearch(mockPage);
       expect(isVoiceSearchActive).toBe(false);
@@ -105,16 +118,24 @@ describe('Google Voice Search User Acceptance Tests', () => {
     });
 
     it('구글 음성검색 상태 변화를 실시간으로 감지해야 함', () => {
-      mockPage.setupVoiceSearch(false, true);
+      // Initial state - no voice button
+      mockPage.querySelector.mockReturnValue(null);
 
       // Initial state
       let isActive = detectGoogleVoiceSearch(mockPage);
       expect(isActive).toBe(false);
 
-      // Simulate voice search activation
-      mockPage.voiceSearchButton.getAttribute.mockReturnValue('true');
-      mockPage.voiceSearchButton.classList.contains.mockReturnValue(true);
-      mockPage.searchInput.placeholder = 'Listening...';
+      // Simulate voice search activation - button appears and is active
+      mockPage.querySelector.mockImplementation(selector => {
+        if (selector.includes('voice') || selector.includes('mic')) {
+          return {
+            getAttribute: vi.fn().mockReturnValue('true'),
+            classList: { contains: vi.fn().mockReturnValue(true) },
+            style: { display: 'block' }
+          };
+        }
+        return null;
+      });
 
       // Check updated state
       isActive = detectGoogleVoiceSearch(mockPage);

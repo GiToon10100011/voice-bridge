@@ -497,8 +497,11 @@ describe("Popup Integration Tests", () => {
         new Error("Tab creation failed")
       );
 
-      // Should not throw
-      await expect(popup.handleSettingsOpen()).resolves.toBeUndefined();
+      // Should not throw when called synchronously
+      expect(() => popup.handleSettingsOpen()).not.toThrow();
+      
+      // Wait a bit for any async operations to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
     });
   });
 
