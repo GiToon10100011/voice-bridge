@@ -13,7 +13,7 @@
   ],
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/background.js"
   },
 
   "content_scripts": [
@@ -23,12 +23,12 @@
         "https://www.google.com/*",
         "https://google.com/*"
       ],
-      "js": ["content.js"]
+      "js": ["src/content/content.js"]
     }
   ],
 
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_title": "TTS Voice Bridge",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -47,7 +47,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["popup.html"],
+      "resources": ["src/popup/popup.html", "src/settings/settings.html"],
       "matches": ["<all_urls>"]
     }
   ]

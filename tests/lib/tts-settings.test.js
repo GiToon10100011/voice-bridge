@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import TTSSettingsManager from "./tts-settings.js";
+import TTSSettingsManager from "../../src/lib/tts-settings.js";
 
 describe("TTSSettingsManager", () => {
   let settingsManager;

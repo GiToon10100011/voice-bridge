@@ -11,6 +11,9 @@ const MESSAGE_TYPES = {
   SETTINGS_VALIDATE: "SETTINGS_VALIDATE",
   VOICE_DETECTION: "VOICE_DETECTION",
   VOICE_RECOGNITION_STATE: "VOICE_RECOGNITION_STATE",
+  PERMISSIONS_CHECK: "PERMISSIONS_CHECK",
+  PERMISSIONS_REQUEST: "PERMISSIONS_REQUEST",
+  PERMISSIONS_STATUS: "PERMISSIONS_STATUS",
   ERROR: "ERROR",
 };
 
@@ -36,22 +39,114 @@ class Message {
   }
 }
 
-// Import TTS Engine (for service worker context)
-importScripts("tts-engine.js");
+// Import TTS Engine, Permissions Manager, and Error Handler (for service worker context)
+importScripts("../lib/tts-engine.js");
+importScripts("permissions-manager.js");
+importScripts("error-handler.js");
 
 // Background Service Worker
 class BackgroundService {
   constructor() {
     this.messageHandlers = new Map();
     this.ttsEngine = null;
+    this.permissionsManager = new PermissionsManager();
+    this.errorHandler = globalErrorHandler;
     this.init();
   }
 
   async init() {
+    this.initializeErrorHandler();
     this.setupMessageHandlers();
     this.setupMessageListeners();
     this.setupInstallListener();
+    await this.initializePermissions();
     await this.initializeTTSEngine();
+  }
+
+  initializeErrorHandler() {
+    try {
+      // Initialize global error handler
+      this.errorHandler.initialize();
+      this.errorHandler.setLogLevel("INFO"); // Set appropriate log level
+
+      // Set up error handlers for background service
+      this.errorHandler.onError("background_service_error", (errorData) => {
+        console.error("Background service error:", errorData);
+      });
+
+      this.errorHandler.onError("message_routing_error", (errorData) => {
+        console.error("Message routing error:", errorData);
+      });
+
+      this.errorHandler.info("Background service error handler initialized");
+    } catch (error) {
+      console.error("Failed to initialize error handler:", error);
+    }
+  }
+
+  async initializePermissions() {
+    try {
+      // Set up error handlers for permissions
+      this.permissionsManager.onError(
+        "extension_api_unavailable",
+        (error, context) => {
+          console.error("Chrome Extensions API unavailable:", error.message);
+        }
+      );
+
+      this.permissionsManager.onError(
+        "missing_required_permissions",
+        (error, context) => {
+          console.warn(
+            "Missing required permissions:",
+            context.missingPermissions
+          );
+          this.notifyPermissionIssue(context.missingPermissions);
+        }
+      );
+
+      this.permissionsManager.onError(
+        "required_permissions_denied",
+        (error, context) => {
+          console.error(
+            "Required permissions denied by user:",
+            context.permissions
+          );
+          this.showPermissionDeniedNotification();
+        }
+      );
+
+      // Initialize permissions
+      const initResult = await this.permissionsManager.initialize();
+
+      if (!initResult.success) {
+        console.error("Permissions initialization failed:", initResult.error);
+        return;
+      }
+
+      if (!initResult.hasAllRequired) {
+        console.warn(
+          "Missing required permissions:",
+          initResult.missingPermissions
+        );
+        // Attempt to request missing permissions
+        const granted =
+          await this.permissionsManager.requestRequiredPermissions();
+        if (!granted) {
+          console.error("Failed to obtain required permissions");
+        }
+      }
+
+      // Set up permission change listeners
+      this.permissionsManager.onPermissionChanged((event) => {
+        console.log("Permission changed:", event);
+        this.handlePermissionChange(event);
+      });
+
+      console.log("Permissions manager initialized successfully");
+    } catch (error) {
+      console.error("Failed to initialize permissions manager:", error);
+    }
   }
 
   async initializeTTSEngine() {
@@ -106,6 +201,18 @@ class BackgroundService {
       MESSAGE_TYPES.SETTINGS_VALIDATE,
       this.handleSettingsValidate.bind(this)
     );
+    this.messageHandlers.set(
+      MESSAGE_TYPES.PERMISSIONS_CHECK,
+      this.handlePermissionsCheck.bind(this)
+    );
+    this.messageHandlers.set(
+      MESSAGE_TYPES.PERMISSIONS_REQUEST,
+      this.handlePermissionsRequest.bind(this)
+    );
+    this.messageHandlers.set(
+      MESSAGE_TYPES.PERMISSIONS_STATUS,
+      this.handlePermissionsStatus.bind(this)
+    );
   }
 
   setupMessageListeners() {
@@ -136,23 +243,29 @@ class BackgroundService {
     try {
       // Validate message format
       if (!Message.isValid(message)) {
-        console.warn("Invalid message format:", message);
+        this.errorHandler.warn("Invalid message format received", {
+          message,
+          sender,
+        });
         sendResponse({ success: false, error: "Invalid message format" });
         return;
       }
 
       // Log message routing for debugging
-      console.log(
+      this.errorHandler.debug(
         `Routing message: ${message.type} from ${
           sender.tab ? "content script" : "popup"
         }`,
-        message
+        { messageType: message.type, sender, payload: message.payload }
       );
 
       // Get handler for message type
       const handler = this.messageHandlers.get(message.type);
       if (!handler) {
-        console.warn("No handler for message type:", message.type);
+        this.errorHandler.warn("No handler for message type", {
+          messageType: message.type,
+          availableHandlers: Array.from(this.messageHandlers.keys()),
+        });
         sendResponse({
           success: false,
           error: `No handler for message type: ${message.type}`,
@@ -162,9 +275,25 @@ class BackgroundService {
 
       // Execute handler
       const result = await handler(message.payload, sender);
+      this.errorHandler.debug(`Message handled successfully: ${message.type}`, {
+        result,
+      });
       sendResponse({ success: true, data: result });
     } catch (error) {
-      console.error("Message routing error:", error);
+      this.errorHandler.error("Message routing failed", error, {
+        messageType: message?.type,
+        sender,
+        payload: message?.payload,
+      });
+
+      // Notify error listeners
+      this.errorHandler.notifyErrorListeners("message_routing_error", {
+        message: error.message,
+        error,
+        messageType: message?.type,
+        sender,
+      });
+
       sendResponse({ success: false, error: error.message });
     }
   }
@@ -206,9 +335,14 @@ class BackgroundService {
 
   async handleTTSPlay(payload, sender) {
     const { text, options } = payload;
-    console.log("TTS Play requested:", text, options);
+    this.errorHandler.info("TTS Play requested", { text, options, sender });
 
     try {
+      // Validate input
+      if (!text || typeof text !== "string" || text.trim() === "") {
+        throw new Error("Valid text is required for TTS playback");
+      }
+
       // Load current settings to merge with options
       const settings = await this.loadSettings();
       const ttsOptions = {
@@ -228,9 +362,22 @@ class BackgroundService {
         Message.create("TTS_EXECUTE", { text, options: ttsOptions })
       );
 
+      this.errorHandler.info("TTS Play delegated to popup successfully", {
+        text,
+        ttsOptions,
+      });
       return { status: "delegated", text, options: ttsOptions };
     } catch (error) {
-      console.error("TTS Play error:", error);
+      this.errorHandler.error("TTS Play failed", error, {
+        text,
+        options,
+        sender,
+      });
+      this.errorHandler.showUserFriendlyError("tts_playback_failed", {
+        text,
+        options,
+        error,
+      });
       throw error;
     }
   }
@@ -469,12 +616,19 @@ class BackgroundService {
 
   async saveSettings(settings) {
     try {
+      this.errorHandler.debug("Saving settings", { settings });
+
       // Validate settings before saving
       const validationErrors = this.validateSettings(settings);
       if (validationErrors.length > 0) {
-        throw new Error(
+        const error = new Error(
           `Settings validation failed: ${validationErrors.join(", ")}`
         );
+        this.errorHandler.error("Settings validation failed", error, {
+          settings,
+          validationErrors,
+        });
+        throw error;
       }
 
       // Merge with defaults to ensure completeness
@@ -483,15 +637,31 @@ class BackgroundService {
       return new Promise((resolve, reject) => {
         chrome.storage.sync.set({ userSettings: completeSettings }, () => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            const error = new Error(chrome.runtime.lastError.message);
+            this.errorHandler.error(
+              "Chrome storage error while saving settings",
+              error,
+              { settings: completeSettings }
+            );
+            this.errorHandler.showUserFriendlyError("settings_save_failed", {
+              settings,
+              error,
+            });
+            reject(error);
           } else {
-            console.log("Settings saved successfully");
+            this.errorHandler.info("Settings saved successfully", {
+              settings: completeSettings,
+            });
             resolve(completeSettings);
           }
         });
       });
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      this.errorHandler.error("Failed to save settings", error, { settings });
+      this.errorHandler.showUserFriendlyError("settings_save_failed", {
+        settings,
+        error,
+      });
       throw error;
     }
   }
@@ -596,6 +766,168 @@ class BackgroundService {
   async detectVoiceRecognition() {
     const result = await this.handleVoiceDetection(null, { tab: null });
     return result.isActive || false;
+  }
+
+  // Permission Management Methods
+  async handlePermissionsCheck(payload, sender) {
+    console.log("Permissions check requested:", payload);
+
+    try {
+      if (payload && payload.permission) {
+        // Check specific permission
+        const hasPermission = await this.permissionsManager.checkPermission(
+          payload.permission
+        );
+        return {
+          permission: payload.permission,
+          hasPermission,
+          status: this.permissionsManager.getPermissionStatus(
+            payload.permission
+          ),
+        };
+      } else {
+        // Check all required permissions
+        const hasAllRequired =
+          await this.permissionsManager.checkAllRequiredPermissions();
+        const allStatus = this.permissionsManager.getAllPermissionStatus();
+        return {
+          hasAllRequired,
+          permissions: allStatus,
+          missingRequired: this.permissionsManager.requiredPermissions.filter(
+            (p) => !this.permissionsManager.getPermissionStatus(p)
+          ),
+        };
+      }
+    } catch (error) {
+      console.error("Permissions check error:", error);
+      throw error;
+    }
+  }
+
+  async handlePermissionsRequest(payload, sender) {
+    console.log("Permissions request:", payload);
+
+    try {
+      if (payload && payload.permission) {
+        // Request specific permission
+        const granted = await this.permissionsManager.requestPermission(
+          payload.permission
+        );
+        return {
+          permission: payload.permission,
+          granted,
+          status: this.permissionsManager.getPermissionStatus(
+            payload.permission
+          ),
+        };
+      } else {
+        // Request all required permissions
+        const granted =
+          await this.permissionsManager.requestRequiredPermissions();
+        const allStatus = this.permissionsManager.getAllPermissionStatus();
+        return {
+          granted,
+          permissions: allStatus,
+          guide: granted
+            ? null
+            : this.permissionsManager.generatePermissionGuideMessage(
+                this.permissionsManager.requiredPermissions.filter(
+                  (p) => !this.permissionsManager.getPermissionStatus(p)
+                )
+              ),
+        };
+      }
+    } catch (error) {
+      console.error("Permissions request error:", error);
+      throw error;
+    }
+  }
+
+  async handlePermissionsStatus(payload, sender) {
+    console.log("Permissions status requested");
+
+    try {
+      const allStatus = this.permissionsManager.getAllPermissionStatus();
+      const hasAllRequired = this.permissionsManager.requiredPermissions.every(
+        (p) => this.permissionsManager.getPermissionStatus(p)
+      );
+
+      return {
+        permissions: allStatus,
+        hasAllRequired,
+        requiredPermissions: this.permissionsManager.requiredPermissions,
+        optionalPermissions: this.permissionsManager.optionalPermissions,
+        missingRequired: this.permissionsManager.requiredPermissions.filter(
+          (p) => !this.permissionsManager.getPermissionStatus(p)
+        ),
+      };
+    } catch (error) {
+      console.error("Permissions status error:", error);
+      throw error;
+    }
+  }
+
+  async notifyPermissionIssue(missingPermissions) {
+    try {
+      // Check if we have notification permission
+      const hasNotificationPermission =
+        await this.permissionsManager.checkPermission("notifications");
+
+      if (hasNotificationPermission) {
+        const guide =
+          this.permissionsManager.generatePermissionGuideMessage(
+            missingPermissions
+          );
+
+        chrome.notifications.create({
+          type: "basic",
+          iconUrl: "/icons/icon48.png",
+          title: guide.title,
+          message:
+            guide.description +
+            "\n필요한 권한: " +
+            missingPermissions.join(", "),
+        });
+      } else {
+        console.warn(
+          "Cannot show notification - notification permission missing"
+        );
+      }
+    } catch (error) {
+      console.error("Failed to show permission notification:", error);
+    }
+  }
+
+  async showPermissionDeniedNotification() {
+    try {
+      const hasNotificationPermission =
+        await this.permissionsManager.checkPermission("notifications");
+
+      if (hasNotificationPermission) {
+        chrome.notifications.create({
+          type: "basic",
+          iconUrl: "/icons/icon48.png",
+          title: "TTS Voice Bridge 권한 필요",
+          message:
+            "확장프로그램이 정상적으로 작동하려면 권한이 필요합니다. 확장프로그램 설정에서 권한을 활성화해주세요.",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to show permission denied notification:", error);
+    }
+  }
+
+  handlePermissionChange(event) {
+    console.log("Permission change detected:", event);
+
+    // Broadcast permission change to popup
+    this.broadcastToPopup(
+      Message.create("PERMISSION_CHANGED", {
+        type: event.type,
+        permissions: event.permissions,
+        allStatus: this.permissionsManager.getAllPermissionStatus(),
+      })
+    );
   }
 }
 
