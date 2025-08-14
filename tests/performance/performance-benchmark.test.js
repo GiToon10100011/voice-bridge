@@ -13,8 +13,16 @@ describe("Performance Benchmarks", () => {
 
     // Mock successful speech for benchmarks
     global.speechSynthesis.speak.mockImplementation((utterance) => {
-      setTimeout(() => utterance.onstart(), 0);
-      setTimeout(() => utterance.onend(), 10);
+      setTimeout(() => {
+        if (typeof utterance.onstart === 'function') {
+          utterance.onstart();
+        }
+      }, 0);
+      setTimeout(() => {
+        if (typeof utterance.onend === 'function') {
+          utterance.onend();
+        }
+      }, 10);
     });
   });
 

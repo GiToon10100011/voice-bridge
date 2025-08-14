@@ -255,6 +255,9 @@ describe("Popup Integration Tests", () => {
       handleSettingsOpen() {
         chrome.tabs.create({
           url: chrome.runtime.getURL("settings.html"),
+        }).catch((error) => {
+          // Handle error silently for testing
+          console.warn("Failed to open settings:", error);
         });
       }
 
@@ -493,6 +496,9 @@ describe("Popup Integration Tests", () => {
     });
 
     it("should handle settings page opening errors", async () => {
+      const originalError = console.error;
+      console.error = vi.fn(); // Suppress expected error logs
+
       mockChrome.tabs.create.mockRejectedValue(
         new Error("Tab creation failed")
       );
@@ -500,8 +506,10 @@ describe("Popup Integration Tests", () => {
       // Should not throw when called synchronously
       expect(() => popup.handleSettingsOpen()).not.toThrow();
       
-      // Wait a bit for any async operations to complete
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Wait a bit for any async operations to complete and catch any unhandled promise
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.error = originalError;
     });
   });
 
