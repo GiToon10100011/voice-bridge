@@ -1,19 +1,89 @@
 {
   "name": "tts-voice-bridge",
   "version": "1.0.0",
-  "description": "TTS Voice Bridge Chrome Extension",
+  "description": "TTS Voice Bridge Chrome Extension - 텍스트를 음성으로 변환하여 ChatGPT와 구글 음성검색에서 사용",
+  "main": "src/background/background.js",
+  "keywords": [
+    "chrome-extension",
+    "tts",
+    "text-to-speech",
+    "chatgpt",
+    "google-voice-search",
+    "voice-recognition",
+    "accessibility"
+  ],
+  "author": "TTS Voice Bridge Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tts-voice-bridge/extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tts-voice-bridge/extension/issues"
+  },
+  "homepage": "https://github.com/tts-voice-bridge/extension#readme",
   "scripts": {
+    "dev": "webpack --mode development --watch",
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "build:production": "NODE_ENV=production webpack --mode production --optimize-minimize",
+    "build:edge": "webpack --mode production --env target=edge",
+    "build:firefox": "webpack --mode production --env target=firefox",
     "test": "vitest --run",
     "test:watch": "vitest",
+    "test:coverage": "vitest --coverage --run",
+    "test:ui": "vitest --ui",
     "test:integration": "vitest --run tests/integration/",
     "test:integration:watch": "vitest tests/integration/",
-    "test:unit": "vitest --run tests/ --exclude tests/integration/ --exclude tests/compatibility/",
+    "test:unit": "vitest --run tests/ --exclude tests/integration/ --exclude tests/compatibility/ --exclude tests/user-acceptance/",
     "test:compatibility": "vitest --run tests/compatibility/",
     "test:compatibility:watch": "vitest tests/compatibility/",
-    "test:all": "vitest --run"
+    "test:user-acceptance": "vitest --run tests/user-acceptance/",
+    "test:all": "vitest --run",
+    "lint": "eslint src/ tests/ --ext .js",
+    "lint:fix": "eslint src/ tests/ --ext .js --fix",
+    "format": "prettier --write \"src/**/*.{js,css,html}\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.{js,css,html}\" \"tests/**/*.js\"",
+    "type-check": "echo 'TypeScript checking not configured'",
+    "validate": "npm run lint && npm run format:check && npm run test && npm run build",
+    "validate:build": "npm run build && node scripts/validate-build.js",
+    "package": "npm run build && npm run zip",
+    "package:dev": "npm run build:dev && npm run zip",
+    "zip": "cd dist && zip -r ../tts-voice-bridge-v$npm_package_version.zip . && cd ..",
+    "clean": "rm -rf dist/ coverage/ *.zip",
+    "clean:all": "npm run clean && rm -rf node_modules/",
+    "prepare": "husky install",
+    "version:patch": "npm version patch && git push origin --tags",
+    "version:minor": "npm version minor && git push origin --tags",
+    "version:major": "npm version major && git push origin --tags",
+    "release": "npm run validate && npm run package && echo 'Release package created: tts-voice-bridge-v'$npm_package_version'.zip'",
+    "start": "npm run dev",
+    "postinstall": "echo 'TTS Voice Bridge 개발 환경이 설정되었습니다. npm run dev로 개발을 시작하세요.'"
   },
   "devDependencies": {
     "vitest": "^1.0.0",
-    "jsdom": "^23.0.0"
+    "jsdom": "^23.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "copy-webpack-plugin": "^11.0.0",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,html}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
   }
 }
