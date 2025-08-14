@@ -213,7 +213,7 @@ name: Deploy to Chrome Web Store
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 jobs:
   deploy:
@@ -224,7 +224,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: '18'
 
       - name: Install dependencies
         run: npm ci
@@ -287,11 +287,11 @@ git push origin --tags
 
 ```javascript
 // Sentry 설정 (선택사항)
-import * as Sentry from "@sentry/browser";
+import * as Sentry from '@sentry/browser';
 
 Sentry.init({
-  dsn: "YOUR_SENTRY_DSN",
-  environment: process.env.NODE_ENV,
+  dsn: 'YOUR_SENTRY_DSN',
+  environment: process.env.NODE_ENV
 });
 ```
 
@@ -299,10 +299,10 @@ Sentry.init({
 
 ```javascript
 // Google Analytics 설정 (선택사항)
-gtag("config", "GA_MEASUREMENT_ID", {
+gtag('config', 'GA_MEASUREMENT_ID', {
   custom_map: {
-    custom_parameter_1: "tts_usage",
-  },
+    custom_parameter_1: 'tts_usage'
+  }
 });
 ```
 
@@ -454,6 +454,78 @@ tts-voice-bridge/
 - [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
 - [Chrome Extensions API](https://developer.chrome.com/docs/extensions/)
 - [Vitest](https://vitest.dev/) - 테스트 프레임워크
+
+## 🚀 실제 사용 가이드
+
+### 개발 환경 설정
+
+```bash
+# 1. 저장소 클론
+git clone https://github.com/tts-voice-bridge/extension.git
+cd extension
+
+# 2. 의존성 설치
+npm install
+
+# 3. 확장프로그램 빌드
+npm run build
+
+# 4. Chrome에서 확장프로그램 로드
+# chrome://extensions/ → 개발자 모드 활성화 → "압축해제된 확장 프로그램을 로드합니다" → dist/ 폴더 선택
+```
+
+### 테스트 실행
+
+```bash
+# 전체 테스트 실행
+npm test
+
+# 특정 테스트 실행
+npm test -- tests/unit/
+npm test -- tests/integration/
+npm test -- tests/user-acceptance/
+```
+
+### 배포 준비
+
+```bash
+# 1. 프로덕션 빌드
+npm run build:production
+
+# 2. 빌드 검증
+npm run validate:build
+
+# 3. 배포 패키지 생성
+npm run package
+
+# 생성된 ZIP 파일을 Chrome 웹 스토어에 업로드
+```
+
+### 자동 배포 (태그 기반)
+
+```bash
+# 버전 업데이트 및 태그 생성
+npm version patch  # 또는 minor, major
+git push origin --tags
+
+# GitHub Actions가 자동으로 빌드 및 배포 실행
+```
+
+### 개발 중 유용한 명령어
+
+```bash
+# 코드 품질 검사
+npm run lint
+
+# 코드 포맷팅
+npm run format
+
+# 전체 검증 (린트 + 테스트 + 빌드)
+npm run validate
+
+# 프로젝트 정리
+npm run clean
+```
 
 ---
 

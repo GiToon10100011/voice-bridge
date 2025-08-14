@@ -18,10 +18,7 @@ const REQUIRED_FILES = [
   'popup/popup.css',
   'settings/settings.html',
   'settings/settings.js',
-  'settings/settings.css',
-  'icons/icon16.png',
-  'icons/icon48.png',
-  'icons/icon128.png'
+  'settings/settings.css'
 ];
 
 console.log('🔍 빌드 검증을 시작합니다...\n');
@@ -52,7 +49,7 @@ console.log('\n📋 manifest.json 검증:');
 try {
   const manifestPath = path.join(DIST_DIR, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  
+
   // 필수 필드 확인
   const requiredFields = ['manifest_version', 'name', 'version', 'description'];
   requiredFields.forEach(field => {
@@ -63,7 +60,7 @@ try {
       hasErrors = true;
     }
   });
-  
+
   // Manifest V3 확인
   if (manifest.manifest_version === 3) {
     console.log('   ✅ Manifest V3 사용');
@@ -71,14 +68,13 @@ try {
     console.log('   ❌ Manifest V3가 아닙니다');
     hasErrors = true;
   }
-  
+
   // 권한 확인
   if (manifest.permissions && Array.isArray(manifest.permissions)) {
     console.log(`   ✅ 권한: ${manifest.permissions.join(', ')}`);
   } else {
     console.log('   ⚠️  권한이 정의되지 않았습니다');
   }
-  
 } catch (error) {
   console.log(`   ❌ manifest.json 파싱 오류: ${error.message}`);
   hasErrors = true;
@@ -118,18 +114,18 @@ let totalSize = 0;
 function getDirectorySize(dirPath) {
   let size = 0;
   const files = fs.readdirSync(dirPath);
-  
+
   files.forEach(file => {
     const filePath = path.join(dirPath, file);
     const stats = fs.statSync(filePath);
-    
+
     if (stats.isDirectory()) {
       size += getDirectorySize(filePath);
     } else {
       size += stats.size;
     }
   });
-  
+
   return size;
 }
 
