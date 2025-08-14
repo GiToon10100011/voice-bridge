@@ -51,6 +51,23 @@ class BackgroundService {
     this.ttsEngine = null;
     this.permissionsManager = new PermissionsManager();
     this.errorHandler = globalErrorHandler;
+
+    // Performance optimizations
+    this.messageQueue = [];
+    this.isProcessingQueue = false;
+    this.settingsCache = null;
+    this.settingsCacheExpiry = 0;
+    this.settingsCacheTTL = 60000; // 1분 캐시
+    this.recentMessages = new Map();
+    this.messageDeduplicationWindow = 1000; // 1초
+    this.performanceMetrics = {
+      messageCount: 0,
+      settingsLoads: 0,
+      settingsSaves: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+    };
+
     this.init();
   }
 
@@ -241,6 +258,9 @@ class BackgroundService {
 
   async routeMessage(message, sender, sendResponse) {
     try {
+      // Performance metrics
+      this.performanceMetrics.messageCount++;
+
       // Validate message format
       if (!Message.isValid(message)) {
         this.errorHandler.warn("Invalid message format received", {
@@ -251,9 +271,133 @@ class BackgroundService {
         return;
       }
 
+      // Message deduplication (중복 메시지 방지)
+      const messageKey = this._generateMessageKey(message, sender);
+      if (this._isDuplicateMessage(messageKey)) {
+        sendResponse({ success: true, data: "duplicate_ignored" });
+        return;
+      }
+
+      // 큐에 메시지 추가 (우선순위 기반)
+      const messageItem = {
+        message,
+        sender,
+        sendResponse,
+        timestamp: Date.now(),
+        priority: this._getMessagePriority(message.type),
+      };
+
+      this.messageQueue.push(messageItem);
+      this._sortMessageQueue();
+
+      // 큐 처리 시작
+      if (!this.isProcessingQueue) {
+        this._processMessageQueue();
+      }
+    } catch (error) {
+      this.errorHandler.error("Message routing failed", error, {
+        messageType: message?.type,
+        sender,
+        payload: message?.payload,
+      });
+
+      sendResponse({ success: false, error: error.message });
+    }
+  }
+
+  /**
+   * 메시지 키 생성 (중복 방지용)
+   * @private
+   */
+  _generateMessageKey(message, sender) {
+    const senderKey = sender.tab ? `tab-${sender.tab.id}` : "popup";
+    return `${message.type}-${senderKey}-${JSON.stringify(message.payload)}`;
+  }
+
+  /**
+   * 중복 메시지 확인
+   * @private
+   */
+  _isDuplicateMessage(messageKey) {
+    const now = Date.now();
+    const lastSeen = this.recentMessages.get(messageKey);
+
+    if (lastSeen && now - lastSeen < this.messageDeduplicationWindow) {
+      return true;
+    }
+
+    this.recentMessages.set(messageKey, now);
+
+    // 오래된 메시지 키 정리
+    if (this.recentMessages.size > 100) {
+      for (const [key, timestamp] of this.recentMessages.entries()) {
+        if (now - timestamp > this.messageDeduplicationWindow * 2) {
+          this.recentMessages.delete(key);
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 메시지 우선순위 결정
+   * @private
+   */
+  _getMessagePriority(messageType) {
+    const priorities = {
+      [MESSAGE_TYPES.TTS_STOP]: 1, // 최고 우선순위
+      [MESSAGE_TYPES.TTS_PAUSE]: 1,
+      [MESSAGE_TYPES.TTS_RESUME]: 1,
+      [MESSAGE_TYPES.TTS_PLAY]: 2, // 높은 우선순위
+      [MESSAGE_TYPES.VOICE_DETECTION]: 3,
+      [MESSAGE_TYPES.SETTINGS_GET]: 4,
+      [MESSAGE_TYPES.SETTINGS_UPDATE]: 4,
+      [MESSAGE_TYPES.PERMISSIONS_CHECK]: 5,
+      [MESSAGE_TYPES.PERMISSIONS_REQUEST]: 5,
+    };
+    return priorities[messageType] || 6; // 기본 우선순위
+  }
+
+  /**
+   * 메시지 큐 정렬 (우선순위 기반)
+   * @private
+   */
+  _sortMessageQueue() {
+    this.messageQueue.sort((a, b) => a.priority - b.priority);
+  }
+
+  /**
+   * 메시지 큐 처리
+   * @private
+   */
+  async _processMessageQueue() {
+    this.isProcessingQueue = true;
+
+    while (this.messageQueue.length > 0) {
+      const messageItem = this.messageQueue.shift();
+      await this._handleSingleMessage(messageItem);
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  /**
+   * 단일 메시지 처리
+   * @private
+   */
+  async _handleSingleMessage({ message, sender, sendResponse, timestamp }) {
+    try {
+      // 메시지가 너무 오래되었으면 무시
+      if (Date.now() - timestamp > 30000) {
+        // 30초
+        sendResponse({ success: false, error: "Message timeout" });
+        return;
+      }
+
       // Log message routing for debugging
       this.errorHandler.debug(
-        `Routing message: ${message.type} from ${
+        `Processing message: ${message.type} from ${
           sender.tab ? "content script" : "popup"
         }`,
         { messageType: message.type, sender, payload: message.payload }
@@ -280,7 +424,7 @@ class BackgroundService {
       });
       sendResponse({ success: true, data: result });
     } catch (error) {
-      this.errorHandler.error("Message routing failed", error, {
+      this.errorHandler.error("Message handling failed", error, {
         messageType: message?.type,
         sender,
         payload: message?.payload,
@@ -616,6 +760,7 @@ class BackgroundService {
 
   async saveSettings(settings) {
     try {
+      this.performanceMetrics.settingsSaves++;
       this.errorHandler.debug("Saving settings", { settings });
 
       // Validate settings before saving
@@ -649,6 +794,10 @@ class BackgroundService {
             });
             reject(error);
           } else {
+            // 캐시 업데이트
+            this.settingsCache = completeSettings;
+            this.settingsCacheExpiry = Date.now() + this.settingsCacheTTL;
+
             this.errorHandler.info("Settings saved successfully", {
               settings: completeSettings,
             });
@@ -668,19 +817,37 @@ class BackgroundService {
 
   async loadSettings() {
     try {
+      this.performanceMetrics.settingsLoads++;
+
+      // 캐시된 설정 확인
+      const now = Date.now();
+      if (this.settingsCache && now < this.settingsCacheExpiry) {
+        this.performanceMetrics.cacheHits++;
+        return this.settingsCache;
+      }
+
+      this.performanceMetrics.cacheMisses++;
+
       return new Promise((resolve, reject) => {
         chrome.storage.sync.get(["userSettings"], (result) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
           } else {
             const settings = result.userSettings;
+            let completeSettings;
+
             if (settings) {
               // Ensure loaded settings are complete
-              const completeSettings = this.mergeWithDefaults(settings);
-              resolve(completeSettings);
+              completeSettings = this.mergeWithDefaults(settings);
             } else {
-              resolve(null);
+              completeSettings = this.getDefaultSettings();
             }
+
+            // 캐시 업데이트
+            this.settingsCache = completeSettings;
+            this.settingsCacheExpiry = now + this.settingsCacheTTL;
+
+            resolve(completeSettings);
           }
         });
       });
@@ -929,7 +1096,92 @@ class BackgroundService {
       })
     );
   }
+
+  /**
+   * 성능 통계 반환
+   */
+  getPerformanceStats() {
+    return {
+      ...this.performanceMetrics,
+      messageQueueSize: this.messageQueue.length,
+      isProcessingQueue: this.isProcessingQueue,
+      recentMessagesCount: this.recentMessages.size,
+      settingsCached: !!this.settingsCache,
+      settingsCacheExpiry: this.settingsCacheExpiry,
+      cacheHitRate:
+        this.performanceMetrics.settingsLoads > 0
+          ? (
+              (this.performanceMetrics.cacheHits /
+                this.performanceMetrics.settingsLoads) *
+              100
+            ).toFixed(2) + "%"
+          : "0%",
+    };
+  }
+
+  /**
+   * 성능 최적화 설정 업데이트
+   */
+  updatePerformanceConfig(config) {
+    if (config.settingsCacheTTL !== undefined) {
+      this.settingsCacheTTL = Math.max(
+        10000,
+        Math.min(300000, config.settingsCacheTTL)
+      ); // 10초~5분
+    }
+    if (config.messageDeduplicationWindow !== undefined) {
+      this.messageDeduplicationWindow = Math.max(
+        100,
+        Math.min(5000, config.messageDeduplicationWindow)
+      ); // 100ms~5초
+    }
+  }
+
+  /**
+   * 메모리 정리
+   */
+  performMemoryCleanup() {
+    // 설정 캐시 만료 확인
+    const now = Date.now();
+    if (now > this.settingsCacheExpiry) {
+      this.settingsCache = null;
+      this.settingsCacheExpiry = 0;
+    }
+
+    // 오래된 메시지 키 정리
+    for (const [key, timestamp] of this.recentMessages.entries()) {
+      if (now - timestamp > this.messageDeduplicationWindow * 5) {
+        this.recentMessages.delete(key);
+      }
+    }
+
+    // 오래된 메시지 큐 항목 정리
+    this.messageQueue = this.messageQueue.filter(
+      (item) => now - item.timestamp < 30000 // 30초 이상 된 메시지 제거
+    );
+  }
+
+  /**
+   * 리소스 해제
+   */
+  dispose() {
+    // 메시지 큐 정리
+    this.messageQueue.length = 0;
+    this.recentMessages.clear();
+
+    // 캐시 정리
+    this.settingsCache = null;
+    this.settingsCacheExpiry = 0;
+
+    // 핸들러 정리
+    this.messageHandlers.clear();
+  }
 }
 
 // Initialize background service
-new BackgroundService();
+const backgroundService = new BackgroundService();
+
+// 주기적 메모리 정리 (5분마다)
+setInterval(() => {
+  backgroundService.performMemoryCleanup();
+}, 300000);

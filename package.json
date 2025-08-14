@@ -4,7 +4,13 @@
   "description": "TTS Voice Bridge Chrome Extension",
   "scripts": {
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest --run tests/integration/",
+    "test:integration:watch": "vitest tests/integration/",
+    "test:unit": "vitest --run tests/ --exclude tests/integration/ --exclude tests/compatibility/",
+    "test:compatibility": "vitest --run tests/compatibility/",
+    "test:compatibility:watch": "vitest tests/compatibility/",
+    "test:all": "vitest --run"
   },
   "devDependencies": {
     "vitest": "^1.0.0",
