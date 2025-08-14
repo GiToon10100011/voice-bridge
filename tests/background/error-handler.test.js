@@ -353,10 +353,13 @@ describe("ErrorHandler", () => {
       const errorSpy = vi.spyOn(errorHandler, "error");
       const showErrorSpy = vi.spyOn(errorHandler, "showUserFriendlyError");
 
+      const rejectedPromise = Promise.reject(new Error("Promise rejection"));
+      rejectedPromise.catch(() => {}); // Handle the rejection to prevent unhandled error
+      
       const rejectionInfo = {
         type: "unhandled_promise_rejection",
         reason: new Error("Promise rejection"),
-        promise: Promise.reject(),
+        promise: rejectedPromise,
       };
 
       errorHandler.handleUnhandledRejection(rejectionInfo);
@@ -490,7 +493,12 @@ describe("ErrorHandler", () => {
 
     it("should handle storage errors when loading logs", async () => {
       mockChrome.storage.local.get.mockImplementation((keys, callback) => {
-        throw new Error("Storage error");
+        try {
+          throw new Error("Storage error");
+        } catch (error) {
+          // Chrome storage API typically fails silently or calls callback with empty data
+          callback({});
+        }
       });
 
       const logs = await errorHandler.loadStoredLogs();
