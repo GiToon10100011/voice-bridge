@@ -123,7 +123,7 @@ class TTSEngine {
         resolve(voices);
       } else {
         // 일부 브라우저에서는 비동기적으로 음성 목록이 로드됨
-        const voiceLoadTimeout = setTimeout(() => {
+        const timeout = setTimeout(() => {
           const error = new Error('음성 목록 로드 시간 초과');
           this._handleError('voice_load_timeout', error);
           reject(error);
@@ -132,7 +132,7 @@ class TTSEngine {
         this.synthesis.addEventListener(
           'voiceschanged',
           () => {
-            clearTimeout(voiceLoadTimeout);
+            clearTimeout(timeout);
             voices = this.synthesis.getVoices();
             if (voices.length > 0) {
               this._cacheVoices(voices);
@@ -384,7 +384,7 @@ class TTSEngine {
         const estimatedDuration = this._estimateSpeechDuration(text, options.rate || 1);
         const timeoutDuration = Math.max(5000, estimatedDuration * 2); // 추정 시간의 2배
 
-        const playbackTimeout = setTimeout(() => {
+        const timeout = setTimeout(() => {
           this.stop();
           const error = new Error('TTS 재생 시간 초과');
           error.type = 'TIMEOUT';
@@ -392,7 +392,7 @@ class TTSEngine {
         }, timeoutDuration);
 
         // 이벤트 리스너 설정 (최적화된 방식)
-        this._setupUtteranceEvents(utterance, playbackTimeout, resolve, reject);
+        this._setupUtteranceEvents(utterance, timeout, resolve, reject);
 
         this.currentUtterance = utterance;
 

@@ -1,0 +1,7 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" fill="#4285f4" rx="20"/>
+  <circle cx="40" cy="50" r="8" fill="white"/>
+  <path d="M55 35 L55 65 L85 50 Z" fill="white"/>
+  <path d="M30 75 Q30 85 40 85 L88 85 Q98 85 98 75 L98 70 L30 70 Z" fill="white"/>
+  <text x="64" y="110" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">TTS</text>
+</svg>
