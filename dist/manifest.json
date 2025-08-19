@@ -2,33 +2,16 @@
   "manifest_version": 3,
   "name": "TTS Voice Bridge",
   "version": "1.0.0",
-  "description": "Convert text to speech for voice recognition systems like ChatGPT voice mode and Google voice search",
-
-  "permissions": ["storage", "activeTab", "scripting"],
-
-  "host_permissions": [
-    "https://chat.openai.com/*",
-    "https://www.google.com/*",
-    "https://google.com/*"
+  "description": "Always-available text-to-speech converter optimized for voice recognition input systems",
+  "permissions": [
+    "storage",
+    "notifications"
   ],
-
   "background": {
-    "service_worker": "src/background/background.js"
+    "service_worker": "background/background.js"
   },
-
-  "content_scripts": [
-    {
-      "matches": [
-        "https://chat.openai.com/*",
-        "https://www.google.com/*",
-        "https://google.com/*"
-      ],
-      "js": ["src/content/content.js"]
-    }
-  ],
-
   "action": {
-    "default_popup": "src/popup/popup.html",
+    "default_popup": "popup/popup.html",
     "default_title": "TTS Voice Bridge",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -37,18 +20,21 @@
       "128": "icons/icon128.png"
     }
   },
-
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-
   "web_accessible_resources": [
     {
-      "resources": ["src/popup/popup.html", "src/settings/settings.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "popup/popup.html",
+        "settings/settings.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

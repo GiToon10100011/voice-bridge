@@ -4,9 +4,9 @@
 
 ## 🎯 주요 기능
 
-- **텍스트 음성 변환**: 텍스트를 자연스러운 음성으로 변환
-- **ChatGPT 음성모드 연동**: ChatGPT 음성모드 자동 감지 및 최적화
-- **구글 음성검색 지원**: 구글 음성검색과 완벽 호환
+- **상시 사용 가능한 TTS**: 언제든지 텍스트를 음성으로 변환
+- **음성 인식 최적화**: ChatGPT, Google Voice Search 등 음성 인식 시스템에 최적화된 오디오 출력
+- **시스템 오디오 라우팅**: 스테레오 믹스/가상 마이크를 통한 오디오 입력 변환
 - **다국어 지원**: 한국어, 영어, 일본어 등 다양한 언어 지원
 - **음성 설정 커스터마이징**: 속도, 톤, 볼륨, 음성 선택 가능
 - **크로스 플랫폼**: Windows, macOS, Linux 지원
@@ -26,9 +26,10 @@ Chrome 웹 스토어에서 "TTS Voice Bridge" 검색 후 설치
 ### 3단계: 사용하기
 
 1. 확장프로그램 아이콘 클릭
-2. 텍스트 입력
-3. 재생 버튼 클릭
-4. ChatGPT/구글에서 음성 인식 확인
+2. 텍스트 입력 (최대 1000자)
+3. Enter 키 또는 재생 버튼 클릭
+4. 생성된 TTS 음성이 시스템 오디오를 통해 출력
+5. ChatGPT/구글 음성검색에서 마이크 버튼 클릭하여 TTS 음성 인식
 
 ## 📚 문서
 
@@ -390,15 +391,17 @@ tts-voice-bridge/
 
 ### ChatGPT와 함께 사용
 
-1. ChatGPT 페이지에서 음성모드 활성화
-2. TTS Voice Bridge에서 질문 입력 후 재생
-3. ChatGPT가 자동으로 음성을 인식하여 응답
+1. TTS Voice Bridge에서 질문 입력 후 재생
+2. ChatGPT 페이지에서 음성모드 버튼 클릭
+3. 스테레오 믹스를 통해 TTS 음성이 마이크 입력으로 전달
+4. ChatGPT가 음성을 인식하여 응답
 
 ### 구글 음성검색과 함께 사용
 
-1. 구글 검색 페이지에서 마이크 아이콘 클릭
-2. TTS Voice Bridge에서 검색어 입력 후 재생
-3. 구글이 검색어를 인식하여 검색 실행
+1. TTS Voice Bridge에서 검색어 입력 후 재생
+2. 구글 검색 페이지에서 마이크 아이콘 클릭
+3. 스테레오 믹스를 통해 TTS 음성이 마이크 입력으로 전달
+4. 구글이 검색어를 인식하여 검색 실행
 
 ## 🤝 기여하기
 
@@ -433,13 +436,75 @@ tts-voice-bridge/
 
 - **Manifest V3**: 최신 Chrome 확장프로그램 표준 사용
 - **Service Worker**: 백그라운드 처리를 위한 서비스 워커 구현
-- **Content Scripts**: 지원 사이트에서 음성인식 상태 감지
-- **Chrome Storage API**: 설정 저장을 위한 Chrome Storage API 사용
 - **Web Speech API**: 텍스트 음성 변환을 위한 Web Speech API 활용
+- **Chrome Storage API**: 설정 저장을 위한 Chrome Storage API 사용
+- **Always-on Architecture**: 상시 사용 가능한 TTS 시스템
+- **Audio Routing**: 시스템 스피커 출력을 마이크 입력으로 라우팅
 
 ## 📄 라이선스
 
 이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+
+## 🎵 오디오 라우팅 가이드
+
+### Windows 설정
+
+1. **스테레오 믹스 활성화**:
+   - 작업표시줄의 스피커 아이콘 우클릭 → "녹음 장치"
+   - 빈 공간에서 우클릭 → "사용 안 함 장치 표시" 및 "연결이 끊어진 장치 표시" 체크
+   - "스테레오 믹스" 찾아서 우클릭 → "사용"
+   - "스테레오 믹스"를 기본 녹음 장치로 설정
+
+2. **사용 방법**:
+   - TTS Voice Bridge에서 텍스트 입력 후 재생
+   - ChatGPT/Google Voice에서 마이크 버튼 클릭
+   - 스테레오 믹스가 TTS 음성을 마이크 입력으로 전달
+
+### macOS 설정
+
+1. **BlackHole 설치**:
+   ```bash
+   brew install blackhole-2ch
+   ```
+
+2. **Audio MIDI 설정**:
+   - "오디오 MIDI 설정" 앱 실행
+   - "멀티 출력 장치" 생성
+   - 내장 출력과 BlackHole 2ch 모두 선택
+   - "시스템 환경설정" → "사운드" → 출력을 "멀티 출력 장치"로 설정
+   - 입력을 "BlackHole 2ch"로 설정
+
+### Linux 설정
+
+1. **PulseAudio 가상 마이크**:
+   ```bash
+   # 가상 스피커 생성
+   pactl load-module module-null-sink sink_name=virtual_speaker
+   
+   # 가상 마이크 생성 (스피커 출력을 마이크 입력으로)
+   pactl load-module module-loopback source=virtual_speaker.monitor sink=@DEFAULT_SINK@
+   ```
+
+2. **자동 설정 스크립트**:
+   ```bash
+   #!/bin/bash
+   # ~/.local/bin/setup-tts-audio.sh
+   pactl load-module module-null-sink sink_name=tts_output
+   pactl load-module module-loopback source=tts_output.monitor sink=@DEFAULT_SINK@
+   pactl set-default-source tts_output.monitor
+   ```
+
+### 문제 해결
+
+- **Windows**: 스테레오 믹스가 없으면 Realtek HD Audio Manager 확인
+- **macOS**: SoundFlower 대신 BlackHole 사용 (더 안정적)
+- **Linux**: PipeWire 사용 시 `pw-loopback` 명령 사용
+
+### 테스트 방법
+
+1. TTS Voice Bridge에서 "테스트" 재생
+2. 시스템 사운드 설정에서 마이크 레벨 확인
+3. ChatGPT 음성모드에서 인식 여부 확인
 
 ## 🆘 지원
 

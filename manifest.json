@@ -2,30 +2,14 @@
   "manifest_version": 3,
   "name": "TTS Voice Bridge",
   "version": "1.0.0",
-  "description": "Convert text to speech for voice recognition systems like ChatGPT voice mode and Google voice search",
+  "description": "Always-available text-to-speech converter optimized for voice recognition input systems",
 
-  "permissions": ["storage", "activeTab", "scripting"],
-
-  "host_permissions": [
-    "https://chat.openai.com/*",
-    "https://www.google.com/*",
-    "https://google.com/*"
-  ],
+  "permissions": ["storage", "notifications"],
 
   "background": {
     "service_worker": "src/background/background.js"
   },
 
-  "content_scripts": [
-    {
-      "matches": [
-        "https://chat.openai.com/*",
-        "https://www.google.com/*",
-        "https://google.com/*"
-      ],
-      "js": ["src/content/content.js"]
-    }
-  ],
 
   "action": {
     "default_popup": "src/popup/popup.html",

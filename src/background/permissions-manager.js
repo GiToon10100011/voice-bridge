@@ -4,8 +4,8 @@
  */
 class PermissionsManager {
   constructor() {
-    this.requiredPermissions = ["storage", "activeTab", "notifications"];
-    this.optionalPermissions = ["tabs"];
+    this.requiredPermissions = ["storage", "notifications"];
+    this.optionalPermissions = [];
     this.permissionStatus = new Map();
     this.errorHandlers = new Map();
   }
@@ -398,6 +398,9 @@ class PermissionsManager {
 // 모듈 내보내기 (브라우저 환경에서 사용)
 if (typeof module !== "undefined" && module.exports) {
   module.exports = PermissionsManager;
-} else {
+} else if (typeof window !== "undefined") {
   window.PermissionsManager = PermissionsManager;
+} else if (typeof self !== "undefined") {
+  // Service Worker 환경에서 전역 접근 가능하도록 설정
+  self.PermissionsManager = PermissionsManager;
 }

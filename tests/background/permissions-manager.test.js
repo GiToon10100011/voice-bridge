@@ -35,10 +35,9 @@ describe("PermissionsManager", () => {
     it("should initialize with correct default values", () => {
       expect(permissionsManager.requiredPermissions).toEqual([
         "storage",
-        "activeTab",
         "notifications",
       ]);
-      expect(permissionsManager.optionalPermissions).toEqual(["tabs"]);
+      expect(permissionsManager.optionalPermissions).toEqual([]);
       expect(permissionsManager.permissionStatus).toBeInstanceOf(Map);
       expect(permissionsManager.errorHandlers).toBeInstanceOf(Map);
     });
@@ -182,7 +181,7 @@ describe("PermissionsManager", () => {
 
       expect(result).toBe(true);
       expect(mockChrome.permissions.contains).toHaveBeenCalledWith(
-        { permissions: ["storage", "activeTab", "notifications"] },
+        { permissions: ["storage", "notifications"] },
         expect.any(Function)
       );
     });
@@ -248,7 +247,7 @@ describe("PermissionsManager", () => {
 
       expect(result).toBe(true);
       expect(mockChrome.permissions.request).toHaveBeenCalledWith(
-        { permissions: ["storage", "activeTab", "notifications"] },
+        { permissions: ["storage", "notifications"] },
         expect.any(Function)
       );
     });
@@ -290,22 +289,22 @@ describe("PermissionsManager", () => {
   describe("Permission Status Management", () => {
     it("should get permission status correctly", () => {
       permissionsManager.permissionStatus.set("storage", true);
-      permissionsManager.permissionStatus.set("activeTab", false);
+      permissionsManager.permissionStatus.set("notifications", false);
 
       expect(permissionsManager.getPermissionStatus("storage")).toBe(true);
-      expect(permissionsManager.getPermissionStatus("activeTab")).toBe(false);
+      expect(permissionsManager.getPermissionStatus("notifications")).toBe(false);
       expect(permissionsManager.getPermissionStatus("unknown")).toBeNull();
     });
 
     it("should get all permission status", () => {
       permissionsManager.permissionStatus.set("storage", true);
-      permissionsManager.permissionStatus.set("activeTab", false);
+      permissionsManager.permissionStatus.set("notifications", false);
 
       const status = permissionsManager.getAllPermissionStatus();
 
       expect(status).toEqual({
         storage: true,
-        activeTab: false,
+        notifications: false,
       });
     });
   });

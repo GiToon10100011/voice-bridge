@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Voice Bridge 디버그 페이지</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .info { border-left-color: #17a2b8; background: #d1ecf1; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 TTS Voice Bridge 디버그 페이지</h1>
+    
+    <div class="section">
+        <h2>📋 확장프로그램 설치 가이드</h2>
+        <ol>
+            <li>Chrome 브라우저에서 <code>chrome://extensions/</code> 접속</li>
+            <li>우측 상단의 "개발자 모드" 토글 켜기</li>
+            <li>"압축해제된 확장 프로그램을 로드합니다" 클릭</li>
+            <li><code>/Users/ulift/Documents/speakerforai/dist</code> 폴더 선택</li>
+            <li>확장프로그램이 설치되면 브라우저 상단에 아이콘 표시됨</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>🔧 Web Speech API 테스트</h2>
+        <button class="test-button" onclick="testSpeechAPI()">Web Speech API 지원 확인</button>
+        <button class="test-button" onclick="testVoices()">음성 목록 확인</button>
+        <button class="test-button" onclick="testTTS()">간단한 TTS 테스트</button>
+        <div id="speechResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+        <h2>🎤 TTS 테스트</h2>
+        <textarea id="testText" placeholder="테스트할 텍스트를 입력하세요..." rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">안녕하세요. TTS Voice Bridge 테스트입니다.</textarea>
+        <br><br>
+        <button class="test-button" onclick="playTestTTS()">음성 재생</button>
+        <button class="test-button" onclick="stopTestTTS()">음성 정지</button>
+        <div id="ttsResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+        <h2>📊 시스템 정보</h2>
+        <button class="test-button" onclick="showSystemInfo()">시스템 정보 표시</button>
+        <div id="systemInfo" class="result" style="display:none;"></div>
+    </div>
+
+    <script>
+        let currentUtterance = null;
+
+        function showResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.innerHTML = message;
+        }
+
+        function testSpeechAPI() {
+            console.log('🧪 Web Speech API 테스트 시작');
+            
+            const isSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+            const message = isSupported 
+                ? '✅ Web Speech API가 지원됩니다!' 
+                : '❌ Web Speech API가 지원되지 않습니다.';
+            
+            showResult('speechResult', message, isSupported ? 'success' : 'error');
+            
+            if (isSupported) {
+                console.log('✅ speechSynthesis 객체:', window.speechSynthesis);
+            }
+        }
+
+        function testVoices() {
+            console.log('🎵 음성 목록 테스트 시작');
+            
+            const voices = speechSynthesis.getVoices();
+            console.log('🎵 로드된 음성들:', voices);
+            
+            if (voices.length === 0) {
+                showResult('speechResult', '⏳ 음성 목록을 로드하는 중... 잠시 후 다시 시도해주세요.', 'info');
+                
+                // voiceschanged 이벤트 대기
+                speechSynthesis.addEventListener('voiceschanged', () => {
+                    const newVoices = speechSynthesis.getVoices();
+                    if (newVoices.length > 0) {
+                        const voiceList = newVoices.map(v => `${v.name} (${v.lang})`).join('<br>');
+                        showResult('speechResult', `✅ ${newVoices.length}개의 음성이 로드되었습니다:<br><br>${voiceList}`, 'success');
+                    }
+                }, { once: true });
+            } else {
+                const voiceList = voices.map(v => `${v.name} (${v.lang})`).join('<br>');
+                showResult('speechResult', `✅ ${voices.length}개의 음성이 사용 가능합니다:<br><br>${voiceList}`, 'success');
+            }
+        }
+
+        function testTTS() {
+            console.log('🔊 TTS 테스트 시작');
+            
+            if (!('speechSynthesis' in window)) {
+                showResult('speechResult', '❌ Web Speech API가 지원되지 않습니다.', 'error');
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance('테스트 음성입니다.');
+            
+            utterance.onstart = () => {
+                console.log('🎵 TTS 시작됨');
+                showResult('speechResult', '🎵 TTS 재생이 시작되었습니다.', 'success');
+            };
+            
+            utterance.onend = () => {
+                console.log('✅ TTS 완료됨');
+                showResult('speechResult', '✅ TTS 재생이 완료되었습니다.', 'success');
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('❌ TTS 오류:', event.error);
+                showResult('speechResult', `❌ TTS 오류: ${event.error}`, 'error');
+            };
+
+            speechSynthesis.speak(utterance);
+        }
+
+        function playTestTTS() {
+            const text = document.getElementById('testText').value;
+            if (!text.trim()) {
+                showResult('ttsResult', '❌ 텍스트를 입력해주세요.', 'error');
+                return;
+            }
+
+            console.log('🎵 사용자 텍스트 TTS 시작:', text);
+
+            if (currentUtterance) {
+                speechSynthesis.cancel();
+            }
+
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            
+            currentUtterance.onstart = () => {
+                console.log('🎵 TTS 시작됨');
+                showResult('ttsResult', '🎵 음성 재생 중...', 'info');
+            };
+            
+            currentUtterance.onend = () => {
+                console.log('✅ TTS 완료됨');
+                showResult('ttsResult', '✅ 음성 재생이 완료되었습니다.', 'success');
+                currentUtterance = null;
+            };
+            
+            currentUtterance.onerror = (event) => {
+                console.error('❌ TTS 오류:', event.error);
+                showResult('ttsResult', `❌ TTS 오류: ${event.error}`, 'error');
+                currentUtterance = null;
+            };
+
+            speechSynthesis.speak(currentUtterance);
+        }
+
+        function stopTestTTS() {
+            console.log('⏹️ TTS 정지');
+            speechSynthesis.cancel();
+            showResult('ttsResult', '⏹️ 음성 재생이 정지되었습니다.', 'info');
+            currentUtterance = null;
+        }
+
+        function showSystemInfo() {
+            console.log('📊 시스템 정보 수집');
+            
+            const info = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                languages: navigator.languages,
+                cookieEnabled: navigator.cookieEnabled,
+                speechSynthesis: 'speechSynthesis' in window,
+                webkitSpeechRecognition: 'webkitSpeechRecognition' in window,
+                chrome: typeof chrome !== 'undefined',
+                chromeRuntime: typeof chrome?.runtime !== 'undefined'
+            };
+
+            const infoHTML = Object.entries(info)
+                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                .join('<br>');
+
+            showResult('systemInfo', infoHTML, 'info');
+            console.log('📊 시스템 정보:', info);
+        }
+
+        // 페이지 로드 시 자동 테스트
+        window.addEventListener('load', () => {
+            console.log('🚀 디버그 페이지 로드됨');
+            testSpeechAPI();
+        });
+    </script>
+</body>
+</html>

@@ -338,10 +338,26 @@ class SettingsUI {
 
   async loadSettings() {
     try {
-      const result = await chrome.storage.sync.get(["ttsSettings"]);
-      const settings = result.ttsSettings || this.defaultSettings;
-
-      this.applySettings(settings);
+      // 백그라운드 스크립트와 동일한 키 사용
+      const result = await chrome.storage.sync.get(["userSettings"]);
+      let settings = result.userSettings;
+      
+      if (settings && settings.tts) {
+        // 백그라운드 스크립트 형식에서 설정 추출
+        const extractedSettings = {
+          voice: settings.tts.voice || "",
+          rate: settings.tts.rate || 1.0,
+          pitch: settings.tts.pitch || 1.0,
+          volume: settings.tts.volume || 1.0,
+          language: settings.tts.language || "ko-KR",
+          autoDetection: settings.detection?.enableAutoDetection !== false,
+          saveLastText: true // 기본값
+        };
+        this.applySettings(extractedSettings);
+      } else {
+        // 기본 설정 적용
+        this.applySettings(this.defaultSettings);
+      }
     } catch (error) {
       console.warn("Failed to load settings:", error);
       this.applySettings(this.defaultSettings);
@@ -362,23 +378,59 @@ class SettingsUI {
   }
 
   async handleSave() {
+    console.log('💾 설정 저장 시작');
+    
     try {
-      const settings = this.getCurrentSettings();
+      const currentSettings = this.getCurrentSettings();
+      console.log('📊 현재 설정:', currentSettings);
 
-      await chrome.storage.sync.set({
-        ttsSettings: settings,
-      });
+      // 백그라운드 스크립트 형식에 맞게 변환
+      const formattedSettings = {
+        tts: {
+          voice: currentSettings.voice,
+          rate: currentSettings.rate,
+          pitch: currentSettings.pitch,
+          volume: currentSettings.volume,
+          language: currentSettings.language
+        },
+        ui: {
+          theme: 'auto',
+          shortcuts: {
+            playTTS: 'Ctrl+Enter',
+            openPopup: 'Alt+T'
+          }
+        },
+        detection: {
+          enableAutoDetection: currentSettings.autoDetection,
+          supportedSites: ['chat.openai.com', 'www.google.com', 'google.com']
+        }
+      };
+      
+      console.log('🔄 변환된 설정:', formattedSettings);
 
-      // Also send message to background script to update settings
-      await chrome.runtime.sendMessage({
+      // 백그라운드 스크립트를 통해 설정 저장
+      console.log('📡 백그라운드 스크립트에 메시지 전송 중...');
+      
+      const message = {
         type: "SETTINGS_UPDATE",
-        payload: settings,
+        payload: formattedSettings,
         timestamp: Date.now(),
-      });
+      };
+      
+      console.log('📨 전송할 메시지:', message);
+      
+      const response = await chrome.runtime.sendMessage(message);
+      console.log('📧 백그라운드 응답:', response);
 
-      this.showStatusMessage("설정이 저장되었습니다.", "success");
+      if (response && response.success) {
+        console.log('✅ 설정 저장 성공');
+        this.showStatusMessage("설정이 저장되었습니다.", "success");
+      } else {
+        console.error('❌ 설정 저장 실패:', response);
+        throw new Error(response?.error || "Settings update failed");
+      }
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      console.error("❌ 설정 저장 중 오류:", error);
       this.showStatusMessage("설정 저장 중 오류가 발생했습니다.", "error");
     }
   }
@@ -403,7 +455,24 @@ class SettingsUI {
   }
 }
 
+// 스크립트 로드 확인
+console.log('🚀 TTS Voice Bridge 설정 스크립트 로드됨');
+
 // Initialize settings when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
-  new SettingsUI();
+  console.log('📄 설정 페이지 DOM 로드 완료');
+  
+  try {
+    const settingsUI = new SettingsUI();
+    console.log('✅ SettingsUI 초기화 완료');
+    
+    // Chrome 확장프로그램 API 사용 가능 여부 확인
+    console.log('🔧 Chrome API 사용 가능:', {
+      runtime: !!chrome?.runtime,
+      storage: !!chrome?.storage
+    });
+    
+  } catch (error) {
+    console.error('❌ SettingsUI 초기화 실패:', error);
+  }
 });

@@ -1,20 +1,18 @@
 // Message Types
 const MESSAGE_TYPES = {
-  TTS_PLAY: "TTS_PLAY",
-  TTS_STOP: "TTS_STOP",
-  TTS_PAUSE: "TTS_PAUSE",
-  TTS_RESUME: "TTS_RESUME",
-  SETTINGS_UPDATE: "SETTINGS_UPDATE",
-  SETTINGS_GET: "SETTINGS_GET",
-  SETTINGS_RESET: "SETTINGS_RESET",
-  SETTINGS_PARTIAL_UPDATE: "SETTINGS_PARTIAL_UPDATE",
-  SETTINGS_VALIDATE: "SETTINGS_VALIDATE",
-  VOICE_DETECTION: "VOICE_DETECTION",
-  VOICE_RECOGNITION_STATE: "VOICE_RECOGNITION_STATE",
-  PERMISSIONS_CHECK: "PERMISSIONS_CHECK",
-  PERMISSIONS_REQUEST: "PERMISSIONS_REQUEST",
-  PERMISSIONS_STATUS: "PERMISSIONS_STATUS",
-  ERROR: "ERROR",
+  TTS_PLAY: 'TTS_PLAY',
+  TTS_STOP: 'TTS_STOP',
+  TTS_PAUSE: 'TTS_PAUSE',
+  TTS_RESUME: 'TTS_RESUME',
+  SETTINGS_UPDATE: 'SETTINGS_UPDATE',
+  SETTINGS_GET: 'SETTINGS_GET',
+  SETTINGS_RESET: 'SETTINGS_RESET',
+  SETTINGS_PARTIAL_UPDATE: 'SETTINGS_PARTIAL_UPDATE',
+  SETTINGS_VALIDATE: 'SETTINGS_VALIDATE',
+  PERMISSIONS_CHECK: 'PERMISSIONS_CHECK',
+  PERMISSIONS_REQUEST: 'PERMISSIONS_REQUEST',
+  PERMISSIONS_STATUS: 'PERMISSIONS_STATUS',
+  ERROR: 'ERROR'
 };
 
 // Message Interface Implementation
@@ -32,17 +30,22 @@ class Message {
   static isValid(message) {
     return (
       message &&
-      typeof message.type === "string" &&
+      typeof message.type === 'string' &&
       Object.values(MESSAGE_TYPES).includes(message.type) &&
-      typeof message.timestamp === "number"
+      typeof message.timestamp === 'number'
     );
   }
 }
 
-// Import TTS Engine, Permissions Manager, and Error Handler (for service worker context)
-importScripts("../lib/tts-engine.js");
-importScripts("permissions-manager.js");
-importScripts("error-handler.js");
+// Import Permissions Manager and Error Handler (for service worker context)
+// Note: TTS Engine is not imported here as it requires DOM APIs not available in service workers
+try {
+  importScripts('permissions-manager.js');
+  importScripts('error-handler.js');
+  console.log('Background scripts imported successfully');
+} catch (error) {
+  console.error('Failed to import background scripts:', error);
+}
 
 // Background Service Worker
 class BackgroundService {
@@ -65,7 +68,7 @@ class BackgroundService {
       settingsLoads: 0,
       settingsSaves: 0,
       cacheHits: 0,
-      cacheMisses: 0,
+      cacheMisses: 0
     };
 
     this.init();
@@ -84,85 +87,66 @@ class BackgroundService {
     try {
       // Initialize global error handler
       this.errorHandler.initialize();
-      this.errorHandler.setLogLevel("INFO"); // Set appropriate log level
+      this.errorHandler.setLogLevel('INFO'); // Set appropriate log level
 
       // Set up error handlers for background service
-      this.errorHandler.onError("background_service_error", (errorData) => {
-        console.error("Background service error:", errorData);
+      this.errorHandler.onError('background_service_error', errorData => {
+        console.error('Background service error:', errorData);
       });
 
-      this.errorHandler.onError("message_routing_error", (errorData) => {
-        console.error("Message routing error:", errorData);
+      this.errorHandler.onError('message_routing_error', errorData => {
+        console.error('Message routing error:', errorData);
       });
 
-      this.errorHandler.info("Background service error handler initialized");
+      this.errorHandler.info('Background service error handler initialized');
     } catch (error) {
-      console.error("Failed to initialize error handler:", error);
+      console.error('Failed to initialize error handler:', error);
     }
   }
 
   async initializePermissions() {
     try {
       // Set up error handlers for permissions
-      this.permissionsManager.onError(
-        "extension_api_unavailable",
-        (error, context) => {
-          console.error("Chrome Extensions API unavailable:", error.message);
-        }
-      );
+      this.permissionsManager.onError('extension_api_unavailable', (error, context) => {
+        console.error('Chrome Extensions API unavailable:', error.message);
+      });
 
-      this.permissionsManager.onError(
-        "missing_required_permissions",
-        (error, context) => {
-          console.warn(
-            "Missing required permissions:",
-            context.missingPermissions
-          );
-          this.notifyPermissionIssue(context.missingPermissions);
-        }
-      );
+      this.permissionsManager.onError('missing_required_permissions', (error, context) => {
+        console.warn('Missing required permissions:', context.missingPermissions);
+        this.notifyPermissionIssue(context.missingPermissions);
+      });
 
-      this.permissionsManager.onError(
-        "required_permissions_denied",
-        (error, context) => {
-          console.error(
-            "Required permissions denied by user:",
-            context.permissions
-          );
-          this.showPermissionDeniedNotification();
-        }
-      );
+      this.permissionsManager.onError('required_permissions_denied', (error, context) => {
+        console.error('Required permissions denied by user:', context.permissions);
+        this.showPermissionDeniedNotification();
+      });
 
       // Initialize permissions
       const initResult = await this.permissionsManager.initialize();
 
       if (!initResult.success) {
-        console.error("Permissions initialization failed:", initResult.error);
+        console.error('Permissions initialization failed:', initResult.error);
         return;
       }
 
       if (!initResult.hasAllRequired) {
-        console.warn(
-          "Missing required permissions:",
-          initResult.missingPermissions
-        );
+        console.warn('Missing required permissions:', initResult.missingPermissions);
         // Attempt to request missing permissions
-        const granted =
-          await this.permissionsManager.requestRequiredPermissions();
+        const granted = await this.permissionsManager.requestRequiredPermissions();
         if (!granted) {
-          console.error("Failed to obtain required permissions");
+          console.error('Failed to obtain required permissions');
         }
       }
 
       // Set up permission change listeners
-      this.permissionsManager.onPermissionChanged((event) => {
-        console.log("Permission changed:", event);
+      this.permissionsManager.onPermissionChanged(event => {
+        console.log('Permission changed:', event);
         this.handlePermissionChange(event);
       });
 
-      console.log("Permissions manager initialized successfully");
+      console.log('Permissions manager initialized successfully');
     } catch (error) {
-      console.error("Failed to initialize permissions manager:", error);
+      console.error('Failed to initialize permissions manager:', error);
     }
   }
 
@@ -170,46 +154,21 @@ class BackgroundService {
     try {
       // TTS Engine은 DOM API를 사용하므로 service worker에서 직접 사용할 수 없음
       // 대신 popup이나 content script에서 TTS를 실행하도록 메시지를 전달
-      console.log("TTS Engine initialization deferred to popup/content script");
+      console.log('TTS Engine initialization deferred to popup/content script');
     } catch (error) {
-      console.error("Failed to initialize TTS Engine:", error);
+      console.error('Failed to initialize TTS Engine:', error);
     }
   }
 
   setupMessageHandlers() {
     // Register message handlers
-    this.messageHandlers.set(
-      MESSAGE_TYPES.TTS_PLAY,
-      this.handleTTSPlay.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.TTS_STOP,
-      this.handleTTSStop.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.TTS_PAUSE,
-      this.handleTTSPause.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.TTS_RESUME,
-      this.handleTTSResume.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.SETTINGS_UPDATE,
-      this.handleSettingsUpdate.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.SETTINGS_GET,
-      this.handleSettingsGet.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.VOICE_DETECTION,
-      this.handleVoiceDetection.bind(this)
-    );
-    this.messageHandlers.set(
-      MESSAGE_TYPES.SETTINGS_RESET,
-      this.handleSettingsReset.bind(this)
-    );
+    this.messageHandlers.set(MESSAGE_TYPES.TTS_PLAY, this.handleTTSPlay.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.TTS_STOP, this.handleTTSStop.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.TTS_PAUSE, this.handleTTSPause.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.TTS_RESUME, this.handleTTSResume.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.SETTINGS_UPDATE, this.handleSettingsUpdate.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.SETTINGS_GET, this.handleSettingsGet.bind(this));
+    this.messageHandlers.set(MESSAGE_TYPES.SETTINGS_RESET, this.handleSettingsReset.bind(this));
     this.messageHandlers.set(
       MESSAGE_TYPES.SETTINGS_PARTIAL_UPDATE,
       this.handleSettingsPartialUpdate.bind(this)
@@ -239,19 +198,11 @@ class BackgroundService {
       return true; // Keep message channel open for async response
     });
 
-    // Listen for messages from content scripts specifically
-    chrome.runtime.onConnect.addListener((port) => {
-      if (port.name === "content-script") {
-        port.onMessage.addListener((message) => {
-          this.handleContentScriptMessage(message, port);
-        });
-      }
-    });
   }
 
   setupInstallListener() {
-    chrome.runtime.onInstalled.addListener((details) => {
-      console.log("TTS Voice Bridge installed:", details.reason);
+    chrome.runtime.onInstalled.addListener(details => {
+      console.log('TTS Voice Bridge installed:', details.reason);
       this.initializeDefaultSettings();
     });
   }
@@ -263,18 +214,18 @@ class BackgroundService {
 
       // Validate message format
       if (!Message.isValid(message)) {
-        this.errorHandler.warn("Invalid message format received", {
+        this.errorHandler.warn('Invalid message format received', {
           message,
-          sender,
+          sender
         });
-        sendResponse({ success: false, error: "Invalid message format" });
+        sendResponse({ success: false, error: 'Invalid message format' });
         return;
       }
 
       // Message deduplication (중복 메시지 방지)
       const messageKey = this._generateMessageKey(message, sender);
       if (this._isDuplicateMessage(messageKey)) {
-        sendResponse({ success: true, data: "duplicate_ignored" });
+        sendResponse({ success: true, data: 'duplicate_ignored' });
         return;
       }
 
@@ -284,7 +235,7 @@ class BackgroundService {
         sender,
         sendResponse,
         timestamp: Date.now(),
-        priority: this._getMessagePriority(message.type),
+        priority: this._getMessagePriority(message.type)
       };
 
       this.messageQueue.push(messageItem);
@@ -295,10 +246,10 @@ class BackgroundService {
         this._processMessageQueue();
       }
     } catch (error) {
-      this.errorHandler.error("Message routing failed", error, {
+      this.errorHandler.error('Message routing failed', error, {
         messageType: message?.type,
         sender,
-        payload: message?.payload,
+        payload: message?.payload
       });
 
       sendResponse({ success: false, error: error.message });
@@ -310,7 +261,7 @@ class BackgroundService {
    * @private
    */
   _generateMessageKey(message, sender) {
-    const senderKey = sender.tab ? `tab-${sender.tab.id}` : "popup";
+    const senderKey = sender.tab ? `tab-${sender.tab.id}` : 'popup';
     return `${message.type}-${senderKey}-${JSON.stringify(message.payload)}`;
   }
 
@@ -350,11 +301,10 @@ class BackgroundService {
       [MESSAGE_TYPES.TTS_PAUSE]: 1,
       [MESSAGE_TYPES.TTS_RESUME]: 1,
       [MESSAGE_TYPES.TTS_PLAY]: 2, // 높은 우선순위
-      [MESSAGE_TYPES.VOICE_DETECTION]: 3,
-      [MESSAGE_TYPES.SETTINGS_GET]: 4,
-      [MESSAGE_TYPES.SETTINGS_UPDATE]: 4,
-      [MESSAGE_TYPES.PERMISSIONS_CHECK]: 5,
-      [MESSAGE_TYPES.PERMISSIONS_REQUEST]: 5,
+      [MESSAGE_TYPES.SETTINGS_GET]: 3,
+      [MESSAGE_TYPES.SETTINGS_UPDATE]: 3,
+      [MESSAGE_TYPES.PERMISSIONS_CHECK]: 4,
+      [MESSAGE_TYPES.PERMISSIONS_REQUEST]: 4
     };
     return priorities[messageType] || 6; // 기본 우선순위
   }
@@ -391,28 +341,26 @@ class BackgroundService {
       // 메시지가 너무 오래되었으면 무시
       if (Date.now() - timestamp > 30000) {
         // 30초
-        sendResponse({ success: false, error: "Message timeout" });
+        sendResponse({ success: false, error: 'Message timeout' });
         return;
       }
 
       // Log message routing for debugging
       this.errorHandler.debug(
-        `Processing message: ${message.type} from ${
-          sender.tab ? "content script" : "popup"
-        }`,
+        `Processing message: ${message.type} from ${sender.tab ? 'content script' : 'popup'}`,
         { messageType: message.type, sender, payload: message.payload }
       );
 
       // Get handler for message type
       const handler = this.messageHandlers.get(message.type);
       if (!handler) {
-        this.errorHandler.warn("No handler for message type", {
+        this.errorHandler.warn('No handler for message type', {
           messageType: message.type,
-          availableHandlers: Array.from(this.messageHandlers.keys()),
+          availableHandlers: Array.from(this.messageHandlers.keys())
         });
         sendResponse({
           success: false,
-          error: `No handler for message type: ${message.type}`,
+          error: `No handler for message type: ${message.type}`
         });
         return;
       }
@@ -420,71 +368,37 @@ class BackgroundService {
       // Execute handler
       const result = await handler(message.payload, sender);
       this.errorHandler.debug(`Message handled successfully: ${message.type}`, {
-        result,
+        result
       });
       sendResponse({ success: true, data: result });
     } catch (error) {
-      this.errorHandler.error("Message handling failed", error, {
+      this.errorHandler.error('Message handling failed', error, {
         messageType: message?.type,
         sender,
-        payload: message?.payload,
+        payload: message?.payload
       });
 
       // Notify error listeners
-      this.errorHandler.notifyErrorListeners("message_routing_error", {
+      this.errorHandler.notifyErrorListeners('message_routing_error', {
         message: error.message,
         error,
         messageType: message?.type,
-        sender,
+        sender
       });
 
       sendResponse({ success: false, error: error.message });
     }
   }
 
-  async handleContentScriptMessage(message, port) {
-    try {
-      console.log("Content script message received:", message);
-
-      // Handle voice recognition state updates from content scripts
-      if (message.type === MESSAGE_TYPES.VOICE_RECOGNITION_STATE) {
-        await this.broadcastToPopup(message);
-      }
-    } catch (error) {
-      console.error("Content script message handling error:", error);
-    }
-  }
-
-  async broadcastToPopup(message) {
-    // Send message to popup if it's open
-    try {
-      await chrome.runtime.sendMessage(message);
-    } catch (error) {
-      // Popup might not be open, which is fine
-      console.log(
-        "Could not broadcast to popup (popup may be closed):",
-        error.message
-      );
-    }
-  }
-
-  async sendMessageToContentScript(tabId, message) {
-    try {
-      await chrome.tabs.sendMessage(tabId, message);
-    } catch (error) {
-      console.error("Failed to send message to content script:", error);
-      throw error;
-    }
-  }
 
   async handleTTSPlay(payload, sender) {
     const { text, options } = payload;
-    this.errorHandler.info("TTS Play requested", { text, options, sender });
+    this.errorHandler.info('TTS Play requested', { text, options, sender });
 
     try {
       // Validate input
-      if (!text || typeof text !== "string" || text.trim() === "") {
-        throw new Error("Valid text is required for TTS playback");
+      if (!text || typeof text !== 'string' || text.trim() === '') {
+        throw new Error('Valid text is required for TTS playback');
       }
 
       // Load current settings to merge with options
@@ -494,180 +408,120 @@ class BackgroundService {
         rate: options?.rate || settings.tts.rate,
         pitch: options?.pitch || settings.tts.pitch,
         volume: options?.volume || settings.tts.volume,
-        lang: options?.lang || settings.tts.language,
+        lang: options?.lang || settings.tts.language
       };
 
-      // Since service workers can't access DOM APIs, delegate TTS to popup
-      // Store the TTS request for popup to execute
-      await this.storeTTSRequest({ text, options: ttsOptions });
-
-      // Notify popup to execute TTS
-      await this.broadcastToPopup(
-        Message.create("TTS_EXECUTE", { text, options: ttsOptions })
-      );
-
-      this.errorHandler.info("TTS Play delegated to popup successfully", {
+      // Service workers can't access Web Speech API directly
+      // Return success immediately and let popup handle TTS directly
+      this.errorHandler.info('TTS Play request processed', {
         text,
-        ttsOptions,
+        ttsOptions
       });
-      return { status: "delegated", text, options: ttsOptions };
+
+      return {
+        success: true,
+        status: 'ready',
+        text,
+        options: ttsOptions
+      };
     } catch (error) {
-      this.errorHandler.error("TTS Play failed", error, {
+      this.errorHandler.error('TTS Play failed', error, {
         text,
         options,
-        sender,
+        sender
       });
-      this.errorHandler.showUserFriendlyError("tts_playback_failed", {
+      this.errorHandler.showUserFriendlyError('tts_playback_failed', {
         text,
         options,
-        error,
+        error
       });
-      throw error;
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
   async handleTTSStop(payload, sender) {
-    console.log("TTS Stop requested");
-
-    try {
-      // Notify popup to stop TTS
-      await this.broadcastToPopup(Message.create("TTS_STOP_EXECUTE"));
-      return { status: "stop_delegated" };
-    } catch (error) {
-      console.error("TTS Stop error:", error);
-      return { status: "stopped" };
-    }
+    console.log('TTS Stop requested');
+    // TTS stopping is handled directly in popup
+    return { status: 'stopped' };
   }
 
   async handleTTSPause(payload, sender) {
-    console.log("TTS Pause requested");
-
-    try {
-      // Notify popup to pause TTS
-      await this.broadcastToPopup(Message.create("TTS_PAUSE_EXECUTE"));
-      return { status: "pause_delegated" };
-    } catch (error) {
-      console.error("TTS Pause error:", error);
-      return { status: "paused" };
-    }
+    console.log('TTS Pause requested');
+    // TTS pausing is handled directly in popup
+    return { status: 'paused' };
   }
 
   async handleTTSResume(payload, sender) {
-    console.log("TTS Resume requested");
-
-    try {
-      // Notify popup to resume TTS
-      await this.broadcastToPopup(Message.create("TTS_RESUME_EXECUTE"));
-      return { status: "resume_delegated" };
-    } catch (error) {
-      console.error("TTS Resume error:", error);
-      return { status: "resumed" };
-    }
+    console.log('TTS Resume requested');
+    // TTS resuming is handled directly in popup
+    return { status: 'resumed' };
   }
 
   async handleSettingsUpdate(payload, sender) {
-    console.log("Settings update requested:", payload);
+    console.log('Settings update requested:', payload);
     await this.saveSettings(payload);
     return { updated: true };
   }
 
   async handleSettingsGet(payload, sender) {
-    console.log("Settings get requested");
+    console.log('Settings get requested');
     const settings = await this.loadSettings();
     return settings;
   }
 
   async handleSettingsReset(payload, sender) {
-    console.log("Settings reset requested");
+    console.log('Settings reset requested');
     const defaultSettings = await this.resetSettings();
     return defaultSettings;
   }
 
   async handleSettingsPartialUpdate(payload, sender) {
-    console.log("Partial settings update requested:", payload);
+    console.log('Partial settings update requested:', payload);
     const updatedSettings = await this.updatePartialSettings(payload);
     return updatedSettings;
   }
 
   async handleSettingsValidate(payload, sender) {
-    console.log("Settings validation requested:", payload);
+    console.log('Settings validation requested:', payload);
     const validationErrors = this.validateSettings(payload);
     return {
       isValid: validationErrors.length === 0,
-      errors: validationErrors,
+      errors: validationErrors
     };
   }
 
-  async handleVoiceDetection(payload, sender) {
-    console.log("Voice detection requested");
-
-    // If request comes from content script, it includes detection data
-    if (sender.tab && payload) {
-      const { isActive, site, type } = payload;
-      console.log(
-        `Voice recognition ${
-          isActive ? "activated" : "deactivated"
-        } on ${site} (${type})`
-      );
-
-      // Broadcast to popup
-      await this.broadcastToPopup(
-        Message.create(MESSAGE_TYPES.VOICE_RECOGNITION_STATE, {
-          isActive,
-          site,
-          type,
-          tabId: sender.tab.id,
-        })
-      );
-
-      return { received: true };
-    }
-
-    // If request comes from popup, query active tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-      try {
-        const response = await this.sendMessageToContentScript(
-          tabs[0].id,
-          Message.create(MESSAGE_TYPES.VOICE_DETECTION)
-        );
-        return response;
-      } catch (error) {
-        return { isActive: false, error: "Could not detect voice recognition" };
-      }
-    }
-
-    return { isActive: false };
-  }
 
   getDefaultSettings() {
     return {
       tts: {
-        voice: "",
-        rate: 1.0,
-        pitch: 1.0,
-        volume: 0.8,
-        language: "ko-KR",
+        voice: '',
+        rate: 0.9,  // 음성 인식에 최적화된 속도 (명확성 향상)
+        pitch: 1.1, // 약간 높은 음조 (인식률 향상)
+        volume: 1.0, // 최대 볼륨 (마이크 입력 최적화)
+        language: 'ko-KR'
       },
       ui: {
-        theme: "auto",
+        theme: 'auto',
         shortcuts: {
-          playTTS: "Ctrl+Enter",
-          openPopup: "Alt+T",
-        },
+          playTTS: 'Ctrl+Enter',
+          openPopup: 'Alt+T'
+        }
       },
-      detection: {
-        enableAutoDetection: true,
-        supportedSites: ["chat.openai.com", "www.google.com", "google.com"],
-      },
+      audio: {
+        enableSystemCapture: false,
+        optimizeForVoiceInput: true
+      }
     };
   }
 
   validateSettings(settings) {
     const errors = [];
 
-    if (!settings || typeof settings !== "object") {
-      errors.push("Settings must be an object");
+    if (!settings || typeof settings !== 'object') {
+      errors.push('Settings must be an object');
       return errors;
     }
 
@@ -675,33 +529,24 @@ class BackgroundService {
     if (settings.tts) {
       const { rate, pitch, volume } = settings.tts;
 
-      if (
-        rate !== undefined &&
-        (typeof rate !== "number" || rate < 0.1 || rate > 10)
-      ) {
-        errors.push("TTS rate must be a number between 0.1 and 10");
+      if (rate !== undefined && (typeof rate !== 'number' || rate < 0.1 || rate > 10)) {
+        errors.push('TTS rate must be a number between 0.1 and 10');
       }
 
-      if (
-        pitch !== undefined &&
-        (typeof pitch !== "number" || pitch < 0 || pitch > 2)
-      ) {
-        errors.push("TTS pitch must be a number between 0 and 2");
+      if (pitch !== undefined && (typeof pitch !== 'number' || pitch < 0 || pitch > 2)) {
+        errors.push('TTS pitch must be a number between 0 and 2');
       }
 
-      if (
-        volume !== undefined &&
-        (typeof volume !== "number" || volume < 0 || volume > 1)
-      ) {
-        errors.push("TTS volume must be a number between 0 and 1");
+      if (volume !== undefined && (typeof volume !== 'number' || volume < 0 || volume > 1)) {
+        errors.push('TTS volume must be a number between 0 and 1');
       }
     }
 
     // Validate UI settings
     if (settings.ui && settings.ui.theme) {
-      const validThemes = ["light", "dark", "auto"];
+      const validThemes = ['light', 'dark', 'auto'];
       if (!validThemes.includes(settings.ui.theme)) {
-        errors.push("UI theme must be one of: light, dark, auto");
+        errors.push('UI theme must be one of: light, dark, auto');
       }
     }
 
@@ -728,9 +573,9 @@ class BackgroundService {
         }
       }
 
-      // Merge detection settings
-      if (userSettings.detection) {
-        Object.assign(merged.detection, userSettings.detection);
+      // Merge audio settings
+      if (userSettings.audio) {
+        Object.assign(merged.audio, userSettings.audio);
       }
     }
 
@@ -743,15 +588,15 @@ class BackgroundService {
       if (!existingSettings) {
         const defaultSettings = this.getDefaultSettings();
         await this.saveSettings(defaultSettings);
-        console.log("Default settings initialized");
+        console.log('Default settings initialized');
       } else {
         // Ensure existing settings have all required fields
         const mergedSettings = this.mergeWithDefaults(existingSettings);
         await this.saveSettings(mergedSettings);
-        console.log("Settings updated with new defaults");
+        console.log('Settings updated with new defaults');
       }
     } catch (error) {
-      console.error("Failed to initialize settings:", error);
+      console.error('Failed to initialize settings:', error);
       // Fallback to default settings
       const defaultSettings = this.getDefaultSettings();
       await this.saveSettings(defaultSettings);
@@ -761,17 +606,15 @@ class BackgroundService {
   async saveSettings(settings) {
     try {
       this.performanceMetrics.settingsSaves++;
-      this.errorHandler.debug("Saving settings", { settings });
+      this.errorHandler.debug('Saving settings', { settings });
 
       // Validate settings before saving
       const validationErrors = this.validateSettings(settings);
       if (validationErrors.length > 0) {
-        const error = new Error(
-          `Settings validation failed: ${validationErrors.join(", ")}`
-        );
-        this.errorHandler.error("Settings validation failed", error, {
+        const error = new Error(`Settings validation failed: ${validationErrors.join(', ')}`);
+        this.errorHandler.error('Settings validation failed', error, {
           settings,
-          validationErrors,
+          validationErrors
         });
         throw error;
       }
@@ -783,14 +626,12 @@ class BackgroundService {
         chrome.storage.sync.set({ userSettings: completeSettings }, () => {
           if (chrome.runtime.lastError) {
             const error = new Error(chrome.runtime.lastError.message);
-            this.errorHandler.error(
-              "Chrome storage error while saving settings",
-              error,
-              { settings: completeSettings }
-            );
-            this.errorHandler.showUserFriendlyError("settings_save_failed", {
+            this.errorHandler.error('Chrome storage error while saving settings', error, {
+              settings: completeSettings
+            });
+            this.errorHandler.showUserFriendlyError('settings_save_failed', {
               settings,
-              error,
+              error
             });
             reject(error);
           } else {
@@ -798,18 +639,18 @@ class BackgroundService {
             this.settingsCache = completeSettings;
             this.settingsCacheExpiry = Date.now() + this.settingsCacheTTL;
 
-            this.errorHandler.info("Settings saved successfully", {
-              settings: completeSettings,
+            this.errorHandler.info('Settings saved successfully', {
+              settings: completeSettings
             });
             resolve(completeSettings);
           }
         });
       });
     } catch (error) {
-      this.errorHandler.error("Failed to save settings", error, { settings });
-      this.errorHandler.showUserFriendlyError("settings_save_failed", {
+      this.errorHandler.error('Failed to save settings', error, { settings });
+      this.errorHandler.showUserFriendlyError('settings_save_failed', {
         settings,
-        error,
+        error
       });
       throw error;
     }
@@ -829,7 +670,7 @@ class BackgroundService {
       this.performanceMetrics.cacheMisses++;
 
       return new Promise((resolve, reject) => {
-        chrome.storage.sync.get(["userSettings"], (result) => {
+        chrome.storage.sync.get(['userSettings'], result => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
           } else {
@@ -852,7 +693,7 @@ class BackgroundService {
         });
       });
     } catch (error) {
-      console.error("Failed to load settings:", error);
+      console.error('Failed to load settings:', error);
       // Return default settings as fallback
       return this.getDefaultSettings();
     }
@@ -862,10 +703,10 @@ class BackgroundService {
     try {
       const defaultSettings = this.getDefaultSettings();
       await this.saveSettings(defaultSettings);
-      console.log("Settings reset to defaults");
+      console.log('Settings reset to defaults');
       return defaultSettings;
     } catch (error) {
-      console.error("Failed to reset settings:", error);
+      console.error('Failed to reset settings:', error);
       throw error;
     }
   }
@@ -875,13 +716,13 @@ class BackgroundService {
       const currentSettings = await this.loadSettings();
       const updatedSettings = this.mergeWithDefaults({
         ...currentSettings,
-        ...partialSettings,
+        ...partialSettings
       });
 
       await this.saveSettings(updatedSettings);
       return updatedSettings;
     } catch (error) {
-      console.error("Failed to update partial settings:", error);
+      console.error('Failed to update partial settings:', error);
       throw error;
     }
   }
@@ -891,29 +732,29 @@ class BackgroundService {
       await chrome.storage.local.set({
         currentTTSRequest: {
           ...request,
-          timestamp: Date.now(),
-        },
+          timestamp: Date.now()
+        }
       });
     } catch (error) {
-      console.error("Failed to store TTS request:", error);
+      console.error('Failed to store TTS request:', error);
     }
   }
 
   async getTTSRequest() {
     try {
-      const result = await chrome.storage.local.get(["currentTTSRequest"]);
+      const result = await chrome.storage.local.get(['currentTTSRequest']);
       return result.currentTTSRequest;
     } catch (error) {
-      console.error("Failed to get TTS request:", error);
+      console.error('Failed to get TTS request:', error);
       return null;
     }
   }
 
   async clearTTSRequest() {
     try {
-      await chrome.storage.local.remove(["currentTTSRequest"]);
+      await chrome.storage.local.remove(['currentTTSRequest']);
     } catch (error) {
-      console.error("Failed to clear TTS request:", error);
+      console.error('Failed to clear TTS request:', error);
     }
   }
 
@@ -930,67 +771,53 @@ class BackgroundService {
     return await this.loadSettings();
   }
 
-  async detectVoiceRecognition() {
-    const result = await this.handleVoiceDetection(null, { tab: null });
-    return result.isActive || false;
-  }
 
   // Permission Management Methods
   async handlePermissionsCheck(payload, sender) {
-    console.log("Permissions check requested:", payload);
+    console.log('Permissions check requested:', payload);
 
     try {
       if (payload && payload.permission) {
         // Check specific permission
-        const hasPermission = await this.permissionsManager.checkPermission(
-          payload.permission
-        );
+        const hasPermission = await this.permissionsManager.checkPermission(payload.permission);
         return {
           permission: payload.permission,
           hasPermission,
-          status: this.permissionsManager.getPermissionStatus(
-            payload.permission
-          ),
+          status: this.permissionsManager.getPermissionStatus(payload.permission)
         };
       } else {
         // Check all required permissions
-        const hasAllRequired =
-          await this.permissionsManager.checkAllRequiredPermissions();
+        const hasAllRequired = await this.permissionsManager.checkAllRequiredPermissions();
         const allStatus = this.permissionsManager.getAllPermissionStatus();
         return {
           hasAllRequired,
           permissions: allStatus,
           missingRequired: this.permissionsManager.requiredPermissions.filter(
-            (p) => !this.permissionsManager.getPermissionStatus(p)
-          ),
+            p => !this.permissionsManager.getPermissionStatus(p)
+          )
         };
       }
     } catch (error) {
-      console.error("Permissions check error:", error);
+      console.error('Permissions check error:', error);
       throw error;
     }
   }
 
   async handlePermissionsRequest(payload, sender) {
-    console.log("Permissions request:", payload);
+    console.log('Permissions request:', payload);
 
     try {
       if (payload && payload.permission) {
         // Request specific permission
-        const granted = await this.permissionsManager.requestPermission(
-          payload.permission
-        );
+        const granted = await this.permissionsManager.requestPermission(payload.permission);
         return {
           permission: payload.permission,
           granted,
-          status: this.permissionsManager.getPermissionStatus(
-            payload.permission
-          ),
+          status: this.permissionsManager.getPermissionStatus(payload.permission)
         };
       } else {
         // Request all required permissions
-        const granted =
-          await this.permissionsManager.requestRequiredPermissions();
+        const granted = await this.permissionsManager.requestRequiredPermissions();
         const allStatus = this.permissionsManager.getAllPermissionStatus();
         return {
           granted,
@@ -999,24 +826,24 @@ class BackgroundService {
             ? null
             : this.permissionsManager.generatePermissionGuideMessage(
                 this.permissionsManager.requiredPermissions.filter(
-                  (p) => !this.permissionsManager.getPermissionStatus(p)
+                  p => !this.permissionsManager.getPermissionStatus(p)
                 )
-              ),
+              )
         };
       }
     } catch (error) {
-      console.error("Permissions request error:", error);
+      console.error('Permissions request error:', error);
       throw error;
     }
   }
 
   async handlePermissionsStatus(payload, sender) {
-    console.log("Permissions status requested");
+    console.log('Permissions status requested');
 
     try {
       const allStatus = this.permissionsManager.getAllPermissionStatus();
-      const hasAllRequired = this.permissionsManager.requiredPermissions.every(
-        (p) => this.permissionsManager.getPermissionStatus(p)
+      const hasAllRequired = this.permissionsManager.requiredPermissions.every(p =>
+        this.permissionsManager.getPermissionStatus(p)
       );
 
       return {
@@ -1025,11 +852,11 @@ class BackgroundService {
         requiredPermissions: this.permissionsManager.requiredPermissions,
         optionalPermissions: this.permissionsManager.optionalPermissions,
         missingRequired: this.permissionsManager.requiredPermissions.filter(
-          (p) => !this.permissionsManager.getPermissionStatus(p)
-        ),
+          p => !this.permissionsManager.getPermissionStatus(p)
+        )
       };
     } catch (error) {
-      console.error("Permissions status error:", error);
+      console.error('Permissions status error:', error);
       throw error;
     }
   }
@@ -1037,64 +864,50 @@ class BackgroundService {
   async notifyPermissionIssue(missingPermissions) {
     try {
       // Check if we have notification permission
-      const hasNotificationPermission =
-        await this.permissionsManager.checkPermission("notifications");
+      const hasNotificationPermission = await this.permissionsManager.checkPermission(
+        'notifications'
+      );
 
       if (hasNotificationPermission) {
-        const guide =
-          this.permissionsManager.generatePermissionGuideMessage(
-            missingPermissions
-          );
+        const guide = this.permissionsManager.generatePermissionGuideMessage(missingPermissions);
 
         chrome.notifications.create({
-          type: "basic",
-          iconUrl: "/icons/icon48.png",
+          type: 'basic',
+          iconUrl: '/icons/icon48.png',
           title: guide.title,
-          message:
-            guide.description +
-            "\n필요한 권한: " +
-            missingPermissions.join(", "),
+          message: guide.description + '\n필요한 권한: ' + missingPermissions.join(', ')
         });
       } else {
-        console.warn(
-          "Cannot show notification - notification permission missing"
-        );
+        console.warn('Cannot show notification - notification permission missing');
       }
     } catch (error) {
-      console.error("Failed to show permission notification:", error);
+      console.error('Failed to show permission notification:', error);
     }
   }
 
   async showPermissionDeniedNotification() {
     try {
-      const hasNotificationPermission =
-        await this.permissionsManager.checkPermission("notifications");
+      const hasNotificationPermission = await this.permissionsManager.checkPermission(
+        'notifications'
+      );
 
       if (hasNotificationPermission) {
         chrome.notifications.create({
-          type: "basic",
-          iconUrl: "/icons/icon48.png",
-          title: "TTS Voice Bridge 권한 필요",
+          type: 'basic',
+          iconUrl: '/icons/icon48.png',
+          title: 'TTS Voice Bridge 권한 필요',
           message:
-            "확장프로그램이 정상적으로 작동하려면 권한이 필요합니다. 확장프로그램 설정에서 권한을 활성화해주세요.",
+            '확장프로그램이 정상적으로 작동하려면 권한이 필요합니다. 확장프로그램 설정에서 권한을 활성화해주세요.'
         });
       }
     } catch (error) {
-      console.error("Failed to show permission denied notification:", error);
+      console.error('Failed to show permission denied notification:', error);
     }
   }
 
   handlePermissionChange(event) {
-    console.log("Permission change detected:", event);
-
-    // Broadcast permission change to popup
-    this.broadcastToPopup(
-      Message.create("PERMISSION_CHANGED", {
-        type: event.type,
-        permissions: event.permissions,
-        allStatus: this.permissionsManager.getAllPermissionStatus(),
-      })
-    );
+    console.log('Permission change detected:', event);
+    // Permission changes are handled when popup requests permission status
   }
 
   /**
@@ -1111,11 +924,10 @@ class BackgroundService {
       cacheHitRate:
         this.performanceMetrics.settingsLoads > 0
           ? (
-              (this.performanceMetrics.cacheHits /
-                this.performanceMetrics.settingsLoads) *
+              (this.performanceMetrics.cacheHits / this.performanceMetrics.settingsLoads) *
               100
-            ).toFixed(2) + "%"
-          : "0%",
+            ).toFixed(2) + '%'
+          : '0%'
     };
   }
 
@@ -1124,10 +936,7 @@ class BackgroundService {
    */
   updatePerformanceConfig(config) {
     if (config.settingsCacheTTL !== undefined) {
-      this.settingsCacheTTL = Math.max(
-        10000,
-        Math.min(300000, config.settingsCacheTTL)
-      ); // 10초~5분
+      this.settingsCacheTTL = Math.max(10000, Math.min(300000, config.settingsCacheTTL)); // 10초~5분
     }
     if (config.messageDeduplicationWindow !== undefined) {
       this.messageDeduplicationWindow = Math.max(
@@ -1157,7 +966,7 @@ class BackgroundService {
 
     // 오래된 메시지 큐 항목 정리
     this.messageQueue = this.messageQueue.filter(
-      (item) => now - item.timestamp < 30000 // 30초 이상 된 메시지 제거
+      item => now - item.timestamp < 30000 // 30초 이상 된 메시지 제거
     );
   }
 

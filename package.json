@@ -24,7 +24,7 @@
   "homepage": "https://github.com/tts-voice-bridge/extension#readme",
   "scripts": {
     "dev": "echo 'Development mode - Chrome 확장프로그램 페이지에서 dist/ 폴더를 로드하세요'",
-    "build": "echo 'Building extension...' && mkdir -p dist && cp -r src/* dist/ && cp manifest.json dist/",
+    "build": "echo 'Building extension...' && mkdir -p dist && cp -r src/* dist/ && cp manifest.json dist/ && cp -r icons dist/ && node scripts/fix-manifest.js",
     "build:dev": "npm run build",
     "build:production": "npm run build",
     "build:edge": "npm run build",
